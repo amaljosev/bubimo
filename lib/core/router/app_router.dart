@@ -7,6 +7,9 @@ import '../../features/diary_entry/domain/entities/diary_entry.dart';
 import '../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
 import '../../features/diary_entry/presentation/pages/diary_form_page.dart';
 import '../../features/diary_entry/presentation/pages/home_page.dart';
+import '../../features/theme/domain/entities/app_theme_data.dart';
+import '../../features/theme/presentation/pages/custom_theme_screen.dart';
+import '../../features/theme/presentation/pages/theme_screen.dart';
 
 /// Route name constants, used both for `GoRoute.name` and for
 /// `context.goNamed(...)` calls elsewhere in the app.
@@ -15,6 +18,8 @@ abstract final class AppRoutes {
   static const home = 'home';
   static const diaryForm = 'diaryForm';
   static const diaryEntryView = 'diaryEntryView';
+  static const themeScreen = 'themeScreen';
+  static const customThemeForm = 'customThemeForm';
 }
 
 /// App-wide router configuration.
@@ -69,6 +74,19 @@ final GoRouter appRouter = GoRouter(
           ),
           onDeleted: () => context.pop(true),
         );
+      },
+    ),
+    GoRoute(
+      path: '/theme',
+      name: AppRoutes.themeScreen,
+      builder: (context, state) => const ThemeScreen(),
+    ),
+    GoRoute(
+      path: '/custom-theme-form',
+      name: AppRoutes.customThemeForm,
+      builder: (context, state) {
+        final existingTheme = state.extra as AppThemeData?;
+        return CustomThemeScreen(existingTheme: existingTheme);
       },
     ),
   ],

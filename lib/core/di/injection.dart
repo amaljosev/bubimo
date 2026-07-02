@@ -1,5 +1,7 @@
 // lib/core/di/injection.dart
 
+import 'package:bubimo/features/theme/%20data/datasources/theme_local_data_source.dart';
+import 'package:bubimo/features/theme/%20data/repositories/theme_repository_impl.dart';
 import 'package:get_it/get_it.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -14,6 +16,15 @@ import '../../features/diary_entry/domain/usecases/get_diary_entry_by_id.dart';
 import '../../features/diary_entry/domain/usecases/update_diary_entry.dart';
 import '../../features/diary_entry/presentation/bloc/diary_list/diary_list_bloc.dart';
 import '../../features/diary_entry/presentation/bloc/diary_view/diary_view_bloc.dart';
+
+import '../../features/theme/domain/repositories/theme_repository.dart';
+import '../../features/theme/domain/usecases/delete_custom_theme.dart';
+import '../../features/theme/domain/usecases/get_all_themes.dart';
+import '../../features/theme/domain/usecases/get_selected_theme.dart';
+import '../../features/theme/domain/usecases/save_custom_theme.dart';
+import '../../features/theme/domain/usecases/select_theme.dart';
+import '../../features/theme/presentation/bloc/theme_list/theme_list_bloc.dart';
+import '../../features/theme/presentation/cubit/app_theme_cubit.dart';
 
 /// Global service locator instance.
 ///
@@ -73,7 +84,7 @@ Future<Database> _openDatabase() async {
 
   return openDatabase(
     path,
-    version: 2, // bumped from 1
+    version: 3, // bumped from 2
     onCreate: (db, version) async {
       await db.execute('''
         CREATE TABLE diary_entries (
@@ -86,13 +97,44 @@ Future<Database> _openDatabase() async {
           mood TEXT
         )
       ''');
+      await _createThemeTables(db);
     },
     onUpgrade: (db, oldVersion, newVersion) async {
       if (oldVersion < 2) {
         await db.execute('ALTER TABLE diary_entries ADD COLUMN mood TEXT');
       }
+      if (oldVersion < 3) {
+        await _createThemeTables(db);
+      }
     },
   );
+}
+
+/// Creates the two tables backing the theme feature (Milestone 3):
+/// `custom_themes` for user-created themes, and the generic key-value
+/// `app_settings` table (currently only storing `selected_theme_id`, see
+/// `ThemeLocalDataSource`, but named generically since future settings
+/// can reuse it rather than each spawning their own single-purpose
+/// table). `IF NOT EXISTS` guards both `onCreate` (fresh install) and
+/// `onUpgrade` (existing install) calling this from the same place
+/// without needing separate duplicated CREATE statements.
+Future<void> _createThemeTables(Database db) async {
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS custom_themes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      primary_color INTEGER NOT NULL,
+      background_color INTEGER NOT NULL,
+      accent_color INTEGER NOT NULL,
+      header_image_path TEXT
+    )
+  ''');
+  await db.execute('''
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  ''');
 }
 
 /// Dummy service to prove the manual-registration pattern.
@@ -116,12 +158,18 @@ void _registerDataSources() {
   getIt.registerLazySingleton<DiaryLocalDataSource>(
     () => DiaryLocalDataSourceImpl(getIt<Database>()),
   );
+  getIt.registerLazySingleton<ThemeLocalDataSource>(
+    () => ThemeLocalDataSourceImpl(getIt<Database>()),
+  );
 }
 
 /// Repositories — translate data-source exceptions into `Either<Failure, T>`.
 void _registerRepositories() {
   getIt.registerLazySingleton<DiaryRepository>(
     () => DiaryRepositoryImpl(getIt<DiaryLocalDataSource>()),
+  );
+  getIt.registerLazySingleton<ThemeRepository>(
+    () => ThemeRepositoryImpl(getIt<ThemeLocalDataSource>()),
   );
 }
 
@@ -137,6 +185,12 @@ void _registerUseCases() {
   );
   getIt.registerLazySingleton(() => UpdateDiaryEntry(getIt<DiaryRepository>()));
   getIt.registerLazySingleton(() => DeleteDiaryEntry(getIt<DiaryRepository>()));
+
+  getIt.registerLazySingleton(() => GetAllThemes(getIt<ThemeRepository>()));
+  getIt.registerLazySingleton(() => GetSelectedTheme(getIt<ThemeRepository>()));
+  getIt.registerLazySingleton(() => SelectTheme(getIt<ThemeRepository>()));
+  getIt.registerLazySingleton(() => SaveCustomTheme(getIt<ThemeRepository>()));
+  getIt.registerLazySingleton(() => DeleteCustomTheme(getIt<ThemeRepository>()));
 }
 
 /// BLoCs — registered as factories (not singletons), since each screen
@@ -145,12 +199,32 @@ void _registerUseCases() {
 ///
 /// Only BLoCs with no runtime-only constructor params live here.
 /// `DiaryFormBloc` is deliberately absent — see the note on
-/// [configureDependencies] above.
+/// [configureDependencies] above. `CustomThemeFormBloc` is absent for the
+/// same reason: it takes an optional `existingTheme` known only at
+/// navigation time, so it's constructed directly in
+/// `CustomThemeScreen`'s `BlocProvider.create`, pulling only its actual
+/// dependency ([SaveCustomTheme]) from `getIt`.
+///
+/// [AppThemeCubit] is the one exception to "factory, not singleton" — it
+/// must persist for the app's entire lifetime and sits in exactly one
+/// `BlocProvider` at the root of the widget tree (see `main.dart`), so a
+/// `registerLazySingleton` is correct here, not a factory.
 void _registerBlocs() {
   getIt.registerFactory<DiaryListBloc>(
     () => DiaryListBloc(getIt<GetAllDiaryEntries>()),
   );
   getIt.registerFactory<DiaryViewBloc>(
     () => DiaryViewBloc(getIt<GetDiaryEntryById>()),
+  );
+
+  getIt.registerFactory<ThemeListBloc>(
+    () => ThemeListBloc(getAllThemes: getIt<GetAllThemes>()),
+  );
+
+  getIt.registerLazySingleton<AppThemeCubit>(
+    () => AppThemeCubit(
+      getSelectedTheme: getIt<GetSelectedTheme>(),
+      selectTheme: getIt<SelectTheme>(),
+    ),
   );
 }
