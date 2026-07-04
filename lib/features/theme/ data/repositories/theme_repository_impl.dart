@@ -23,9 +23,9 @@ class ThemeRepositoryImpl implements ThemeRepository {
       final customThemes = await localDataSource.getCustomThemes();
       return Right([...AppThemeModel.defaultThemes, ...customThemes]);
     } on AppDatabaseException catch (e) {
-      return Left(DatabaseFailure(message: e.message));
+      return Left(DatabaseFailure( e.message));
     } catch (e) {
-      return Left(UnexpectedFailure(message: e.toString()));
+      return Left(UnexpectedFailure( e.toString()));
     }
   }
 
@@ -56,9 +56,9 @@ class ThemeRepositoryImpl implements ThemeRepository {
       // consistent with the fresh-install case above.
       return Right(AppThemeModel.defaultThemes.first);
     } on AppDatabaseException catch (e) {
-      return Left(DatabaseFailure(message: e.message));
+      return Left(DatabaseFailure( e.message));
     } catch (e) {
-      return Left(UnexpectedFailure(message: e.toString()));
+      return Left(UnexpectedFailure( e.toString()));
     }
   }
 
@@ -68,26 +68,24 @@ class ThemeRepositoryImpl implements ThemeRepository {
       await localDataSource.setSelectedThemeId(id);
       return const Right(unit);
     } on AppDatabaseException catch (e) {
-      return Left(DatabaseFailure(message: e.message));
+      return Left(DatabaseFailure( e.message));
     } catch (e) {
-      return Left(UnexpectedFailure(message: e.toString()));
+      return Left(UnexpectedFailure( e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, AppThemeData>> saveCustomTheme(
-    AppThemeData theme,
-  ) async {
-    try {
-      final model = AppThemeModel.fromEntity(theme);
-      final saved = await localDataSource.saveCustomTheme(model);
-      return Right(saved);
-    } on AppDatabaseException catch (e) {
-      return Left(DatabaseFailure(message: e.message));
-    } catch (e) {
-      return Left(UnexpectedFailure(message: e.toString()));
-    }
+Future<Either<Failure, Unit>> saveCustomTheme(AppThemeData theme) async {
+  try {
+    final model = AppThemeModel.fromEntity(theme);
+    await localDataSource.saveCustomTheme(model);
+    return const Right(unit);
+  } on AppDatabaseException catch (e) {
+    return Left(DatabaseFailure(e.message));
+  } catch (e) {
+    return Left(UnexpectedFailure(e.toString()));
   }
+}
 
   @override
   Future<Either<Failure, Unit>> deleteCustomTheme(String id) async {
@@ -95,9 +93,9 @@ class ThemeRepositoryImpl implements ThemeRepository {
       await localDataSource.deleteCustomTheme(id);
       return const Right(unit);
     } on AppDatabaseException catch (e) {
-      return Left(DatabaseFailure(message: e.message));
+      return Left(DatabaseFailure( e.message));
     } catch (e) {
-      return Left(UnexpectedFailure(message: e.toString()));
+      return Left(UnexpectedFailure( e.toString()));
     }
   }
 }

@@ -2,112 +2,113 @@
 
 import 'package:sqflite/sqflite.dart';
 
-import '../../../../core/error/exceptions.dart';
+import '../../../../core/database/app_database.dart';
+import '../../../../core/database/tables/app_settings_table.dart';
+import '../../../../core/database/tables/custom_themes_table.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../models/app_theme_model.dart';
 
-const String kCustomThemesTable = 'custom_themes';
-const String kAppSettingsTable = 'app_settings';
-const String kSelectedThemeIdKey = 'selected_theme_id';
-
-/// Abstract local data source contract for theme persistence.
-///
-/// Two concerns live here, matching the two tables involved:
-/// `custom_themes` (CRUD for user-created themes) and `app_settings`
-/// (a simple key-value table storing which theme id is currently
-/// selected — same table pattern as any other app-wide preference).
-/// Throws data-layer exceptions on failure; the repository impl converts
-/// these to [Failure]s.
+/// Raw sqflite access for custom themes (`custom_themes` table) and the
+/// currently selected theme (`theme_id` column on the singleton
+/// `app_settings` row). No error-wrapping here — exceptions propagate up
+/// to [ThemeRepositoryImpl].
 abstract class ThemeLocalDataSource {
   Future<List<AppThemeModel>> getCustomThemes();
-
-  Future<AppThemeModel> saveCustomTheme(AppThemeModel theme);
-
+  Future<void> saveCustomTheme(AppThemeModel theme);
   Future<void> deleteCustomTheme(String id);
-
-  /// Returns the persisted selected theme id, or `null` if none has ever
-  /// been set (fresh install).
   Future<String?> getSelectedThemeId();
-
-  Future<void> setSelectedThemeId(String id);
+  Future<void> setSelectedThemeId(String themeId);
 }
 
 class ThemeLocalDataSourceImpl implements ThemeLocalDataSource {
-  final Database database;
+  final AppDatabase appDatabase;
 
-  const ThemeLocalDataSourceImpl(this.database);
-
-  String _generateId() => DateTime.now().microsecondsSinceEpoch.toString();
+  const ThemeLocalDataSourceImpl(this.appDatabase);
 
   @override
   Future<List<AppThemeModel>> getCustomThemes() async {
-    try {
-      final rows = await database.query(kCustomThemesTable);
-      return rows.map((row) => AppThemeModel.fromMap(row)).toList();
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to fetch custom themes: $e');
-    }
+    final db = await appDatabase.database;
+    final rows = await db.query(
+      CustomThemesTable.tableName,
+      orderBy: '${CustomThemesTable.columnCreatedAt} DESC',
+    );
+    return rows.map(AppThemeModel.fromMap).toList();
   }
 
   @override
-  Future<AppThemeModel> saveCustomTheme(AppThemeModel theme) async {
-    try {
-      final themeWithId = theme.id.isEmpty
-          ? AppThemeModel.fromEntity(theme.copyWith(id: _generateId()))
-          : theme;
-      await database.insert(
-        kCustomThemesTable,
-        themeWithId.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-      return themeWithId;
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to save custom theme: $e');
-    }
+  Future<void> saveCustomTheme(AppThemeModel theme) async {
+    final db = await appDatabase.database;
+
+    // Preserve the original createdAt on update; use "now" only when
+    // this is a brand new custom theme.
+    final existingRows = await db.query(
+      CustomThemesTable.tableName,
+      columns: [CustomThemesTable.columnCreatedAt],
+      where: '${CustomThemesTable.columnId} = ?',
+      whereArgs: [theme.id],
+      limit: 1,
+    );
+
+    final createdAt = existingRows.isNotEmpty
+        ? existingRows.first[CustomThemesTable.columnCreatedAt] as String
+        : AppDateUtils.toStorageString(DateTime.now());
+
+    await db.insert(
+      CustomThemesTable.tableName,
+      theme.toMap(createdAt: createdAt),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   @override
   Future<void> deleteCustomTheme(String id) async {
-    try {
-      final rowsAffected = await database.delete(
-        kCustomThemesTable,
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-      if (rowsAffected == 0) {
-        throw AppDatabaseException(message: 'Custom theme with id $id not found');
-      }
-    } catch (e) {
-      if (e is AppDatabaseException) rethrow;
-      throw AppDatabaseException(message: 'Failed to delete custom theme: $e');
-    }
+    final db = await appDatabase.database;
+    await db.delete(
+      CustomThemesTable.tableName,
+      where: '${CustomThemesTable.columnId} = ?',
+      whereArgs: [id],
+    );
   }
 
   @override
   Future<String?> getSelectedThemeId() async {
-    try {
-      final rows = await database.query(
-        kAppSettingsTable,
-        where: 'key = ?',
-        whereArgs: [kSelectedThemeIdKey],
-        limit: 1,
-      );
-      if (rows.isEmpty) return null;
-      return rows.first['value'] as String?;
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to read selected theme: $e');
-    }
+    final db = await appDatabase.database;
+    final rows = await db.query(
+      AppSettingsTable.tableName,
+      columns: [AppSettingsTable.columnThemeId],
+      where: '${AppSettingsTable.columnId} = ?',
+      whereArgs: [AppSettingsTable.singletonId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first[AppSettingsTable.columnThemeId] as String?;
   }
 
   @override
-  Future<void> setSelectedThemeId(String id) async {
-    try {
-      await database.insert(
-        kAppSettingsTable,
-        {'key': kSelectedThemeIdKey, 'value': id},
+  Future<void> setSelectedThemeId(String themeId) async {
+    final db = await appDatabase.database;
+
+    final rowsAffected = await db.update(
+      AppSettingsTable.tableName,
+      {AppSettingsTable.columnThemeId: themeId},
+      where: '${AppSettingsTable.columnId} = ?',
+      whereArgs: [AppSettingsTable.singletonId],
+    );
+
+    // The singleton settings row doesn't exist yet (fresh install) —
+    // create it now with the theme selection set.
+    if (rowsAffected == 0) {
+      await db.insert(
+        AppSettingsTable.tableName,
+        {
+          AppSettingsTable.columnId: AppSettingsTable.singletonId,
+          AppSettingsTable.columnThemeId: themeId,
+          AppSettingsTable.columnLockType: AppSettingsTable.defaultLockType,
+          AppSettingsTable.columnLockTimeoutMinutes:
+              AppSettingsTable.defaultLockTimeoutMinutes,
+        },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to persist selected theme: $e');
     }
   }
 }

@@ -5,16 +5,20 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/error/failures.dart';
 import '../repositories/diary_repository.dart';
 
-/// Deletes a diary entry by id.
+/// Permanently deletes a diary entry by id.
 ///
-/// Milestone 1: hard delete. Milestone 15 (optional) may introduce a
-/// Trash/soft-delete flow via `is_deleted` — not in scope here.
+/// Note: if a Trash/soft-delete feature is adopted later, this can be
+/// swapped to call `updateEntry(entry.copyWith(isDeleted: true,
+/// deletedAt: DateTime.now()))` instead of a hard delete — the entity
+/// already supports this without a schema change.
+///
+/// Usage: `await deleteDiaryEntry(entryId)`.
 class DeleteDiaryEntry {
   final DiaryRepository repository;
 
   const DeleteDiaryEntry(this.repository);
 
-  Future<Either<Failure, Unit>> call(String id) {
+  Future<Either<Failure, void>> call(String id) {
     return repository.deleteEntry(id);
   }
 }

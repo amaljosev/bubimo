@@ -2,34 +2,36 @@
 
 import 'package:flutter/material.dart';
 
-/// Shows a confirmation dialog before deleting a diary entry.
+/// Shows a confirmation dialog before a destructive delete action.
 ///
-/// Returns `true` if the user confirmed deletion, `false` if they
-/// cancelled, or `null` if the dialog was dismissed some other way (e.g.
-/// tapping outside it or the system back gesture) — callers should treat
-/// anything other than `true` as "do not delete".
+/// Returns `true` if the user confirmed deletion, `false`/`null`
+/// otherwise. Used by the Entry View screen before calling
+/// `DeleteDiaryEntry` — diary entries are emotionally high-value, so
+/// deletion should never happen from a single accidental tap.
 Future<bool?> showConfirmDeleteDialog(BuildContext context) {
   return showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Delete entry?'),
-      content: const Text(
-        'This entry will be permanently deleted. This action cannot be undone.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Delete this entry?'),
+        content: const Text(
+          'This diary entry will be permanently deleted. This action '
+          'cannot be undone.',
         ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-            foregroundColor: Theme.of(context).colorScheme.onError,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
           ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      );
+    },
   );
 }

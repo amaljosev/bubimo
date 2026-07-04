@@ -3,7 +3,10 @@
         "bubimo",
         "Cupertino",
         "fpdart",
+        "Gxie",
         "sqflite",
-        "usecases"
+        "supabase",
+        "usecases",
+        "webp"
     ]
 }

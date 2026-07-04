@@ -2,125 +2,87 @@
 
 import 'package:sqflite/sqflite.dart';
 
-import '../../../../core/error/exceptions.dart';
+import '../../../../core/database/app_database.dart';
+import '../../../../core/database/tables/diary_entries_table.dart';
 import '../models/diary_entry_model.dart';
 
-const String kDiaryEntriesTable = 'diary_entries';
-
-/// Abstract local data source contract for diary entries.
-/// Throws data-layer exceptions (e.g. [AppDatabaseException]) on failure;
-/// the repository impl is responsible for converting these to Failures.
+/// Raw sqflite access for the `diary_entries` table. No error-wrapping
+/// here — exceptions propagate up to [DiaryRepositoryImpl], which is
+/// responsible for converting them into `Either<Failure, T>`.
 abstract class DiaryLocalDataSource {
-  Future<DiaryEntryModel> createEntry(DiaryEntryModel entry);
-
+  Future<void> insertEntry(DiaryEntryModel entry);
   Future<List<DiaryEntryModel>> getAllEntries();
-
   Future<DiaryEntryModel> getEntryById(String id);
-
-  Future<DiaryEntryModel> updateEntry(DiaryEntryModel entry);
-
+  Future<void> updateEntry(DiaryEntryModel entry);
   Future<void> deleteEntry(String id);
 }
 
 class DiaryLocalDataSourceImpl implements DiaryLocalDataSource {
-  final Database database;
+  final AppDatabase appDatabase;
 
-  const DiaryLocalDataSourceImpl(this.database);
-
-  /// `id` is a TEXT primary key with no autoincrement, so it must be
-  /// generated client-side before insert. Using microsecond-epoch string
-  /// rather than pulling in a `uuid` dependency, since `uuid` isn't in the
-  /// locked pubspec. Swap this for `Uuid().v4()` if/when that package is
-  /// added.
-  String _generateId() => DateTime.now().microsecondsSinceEpoch.toString();
+  const DiaryLocalDataSourceImpl(this.appDatabase);
 
   @override
-  Future<DiaryEntryModel> createEntry(DiaryEntryModel entry) async {
-    try {
-      final entryWithId = entry.id == null
-          ? DiaryEntryModel.fromEntity(entry.copyWith(id: _generateId()))
-          : entry;
-      await database.insert(
-        kDiaryEntriesTable,
-        entryWithId.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
-      return entryWithId;
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to create diary entry: $e');
-    }
+  Future<void> insertEntry(DiaryEntryModel entry) async {
+    final db = await appDatabase.database;
+    await db.insert(
+      DiaryEntriesTable.tableName,
+      entry.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   @override
   Future<List<DiaryEntryModel>> getAllEntries() async {
-    try {
-      final rows = await database.query(
-        kDiaryEntriesTable,
-        orderBy: 'created_at DESC',
-      );
-      return rows.map((row) => DiaryEntryModel.fromMap(row)).toList();
-    } catch (e) {
-      throw AppDatabaseException(message: 'Failed to fetch diary entries: $e');
-    }
+    final db = await appDatabase.database;
+    final rows = await db.query(
+      DiaryEntriesTable.tableName,
+      where: '${DiaryEntriesTable.columnIsDeleted} = ?',
+      whereArgs: [0],
+      orderBy: '${DiaryEntriesTable.columnDate} DESC',
+    );
+    return rows.map(DiaryEntryModel.fromMap).toList();
   }
 
   @override
   Future<DiaryEntryModel> getEntryById(String id) async {
-    try {
-      final rows = await database.query(
-        kDiaryEntriesTable,
-        where: 'id = ?',
-        whereArgs: [id],
-        limit: 1,
-      );
-      if (rows.isEmpty) {
-        throw AppDatabaseException(message: 'Diary entry with id $id not found');
-      }
-      return DiaryEntryModel.fromMap(rows.first);
-    } catch (e) {
-      if (e is AppDatabaseException) rethrow;
-      throw AppDatabaseException(message: 'Failed to fetch diary entry: $e');
+    final db = await appDatabase.database;
+    final rows = await db.query(
+      DiaryEntriesTable.tableName,
+      where: '${DiaryEntriesTable.columnId} = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      throw StateError('No diary entry found with id: $id');
     }
+    return DiaryEntryModel.fromMap(rows.first);
   }
 
   @override
-  Future<DiaryEntryModel> updateEntry(DiaryEntryModel entry) async {
-    try {
-      if (entry.id == null) {
-        throw AppDatabaseException(message: 'Cannot update entry without an id');
-      }
-      final rowsAffected = await database.update(
-        kDiaryEntriesTable,
-        entry.toMap(),
-        where: 'id = ?',
-        whereArgs: [entry.id],
-      );
-      if (rowsAffected == 0) {
-        throw AppDatabaseException(
-          message: 'Diary entry with id ${entry.id} not found',
-        );
-      }
-      return entry;
-    } catch (e) {
-      if (e is AppDatabaseException) rethrow;
-      throw AppDatabaseException(message: 'Failed to update diary entry: $e');
+  Future<void> updateEntry(DiaryEntryModel entry) async {
+    final db = await appDatabase.database;
+    final rowsAffected = await db.update(
+      DiaryEntriesTable.tableName,
+      entry.toMap(),
+      where: '${DiaryEntriesTable.columnId} = ?',
+      whereArgs: [entry.id],
+    );
+    if (rowsAffected == 0) {
+      throw StateError('No diary entry found with id: ${entry.id}');
     }
   }
 
   @override
   Future<void> deleteEntry(String id) async {
-    try {
-      final rowsAffected = await database.delete(
-        kDiaryEntriesTable,
-        where: 'id = ?',
-        whereArgs: [id],
-      );
-      if (rowsAffected == 0) {
-        throw AppDatabaseException(message: 'Diary entry with id $id not found');
-      }
-    } catch (e) {
-      if (e is AppDatabaseException) rethrow;
-      throw AppDatabaseException(message: 'Failed to delete diary entry: $e');
+    final db = await appDatabase.database;
+    final rowsAffected = await db.delete(
+      DiaryEntriesTable.tableName,
+      where: '${DiaryEntriesTable.columnId} = ?',
+      whereArgs: [id],
+    );
+    if (rowsAffected == 0) {
+      throw StateError('No diary entry found with id: $id');
     }
   }
 }

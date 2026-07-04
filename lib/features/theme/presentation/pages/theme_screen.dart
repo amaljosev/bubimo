@@ -2,38 +2,27 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
 import '../../domain/entities/app_theme_data.dart';
-import '../../domain/usecases/get_all_themes.dart';
 import '../bloc/theme_list/theme_list_bloc.dart';
-
+import '../bloc/theme_list/theme_list_event.dart';
+import '../bloc/theme_list/theme_list_state.dart';
 import '../cubit/app_theme_cubit.dart';
 
-/// Lists all selectable themes (bundled defaults + user-created custom
-/// ones). Tapping a theme calls `AppThemeCubit.changeTheme`, which
-/// applies it app-wide immediately (see `AppThemeCubit` doc comment) —
-/// this screen doesn't manage the active theme itself, only reads it
-/// (via `context.watch<AppThemeCubit>().activeTheme`) to know which item
-/// to highlight.
-///
-/// Navigating to the Custom Theme Screen (create or edit) reuses the
-/// established awaited-Navigator.push-result + reload pattern: on
-/// return, [ThemeListRequested] is re-dispatched so newly-created/edited/
-/// deleted custom themes are reflected without a full screen rebuild.
+/// Lists default and custom themes; tapping one applies it app-wide
+/// immediately via [AppThemeCubit].
 class ThemeScreen extends StatelessWidget {
   const ThemeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => ThemeListBloc(
-        getAllThemes: GetIt.instance<GetAllThemes>(),
-      )..add(const ThemeListRequested()),
+      create: (_) => getIt<ThemeListBloc>()..add(const LoadThemes()),
       child: const _ThemeScreenView(),
     );
   }
@@ -47,83 +36,83 @@ class _ThemeScreenView extends StatefulWidget {
 }
 
 class _ThemeScreenViewState extends State<_ThemeScreenView> {
-  // Guards against rapid/duplicate taps triggering multiple
-  // navigations/selections at once — same pattern used elsewhere in the
-  // app (single-navigation guard on buttons).
-  bool _isNavigating = false;
-  bool _isSelecting = false;
+  // Guards against a rapid double-tap applying two theme changes at
+  // once, and against opening two Custom Theme screens from fast taps.
+  bool _isApplyingTheme = false;
+  bool _isNavigatingToCustom = false;
 
-  Future<void> _selectTheme(AppThemeData theme) async {
-    if (_isSelecting) return;
-    setState(() => _isSelecting = true);
+  Future<void> _applyTheme(BuildContext context, String themeId) async {
+    if (_isApplyingTheme) return;
+    _isApplyingTheme = true;
 
-    final success = await context.read<AppThemeCubit>().changeTheme(theme);
+    final result = await context.read<AppThemeCubit>().changeTheme(themeId);
 
-    if (!mounted) return;
-    setState(() => _isSelecting = false);
+    _isApplyingTheme = false;
 
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not apply theme. Please try again.')),
-      );
-    }
+    if (!context.mounted) return;
+
+    result.match(
+      (failure) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failure.message)),
+      ),
+      (_) {},
+    );
   }
 
-  Future<void> _openCustomThemeScreen({AppThemeData? existingTheme}) async {
-    if (_isNavigating) return;
-    _isNavigating = true;
+  Future<void> _openCustomThemeScreen(BuildContext context) async {
+    if (_isNavigatingToCustom) return;
+    _isNavigatingToCustom = true;
 
-    await context.pushNamed<bool>(
-      AppRoutes.customThemeForm,
-      extra: existingTheme,
-    );
+    final result = await context.push<bool>(AppRoutes.customThemeScreen);
 
-    _isNavigating = false;
-    if (!mounted) return;
-    context.read<ThemeListBloc>().add(const ThemeListRequested());
+    _isNavigatingToCustom = false;
+
+    if (result == true && context.mounted) {
+      context.read<ThemeListBloc>().add(const LoadThemes());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeTheme = context.watch<AppThemeCubit>().activeTheme;
-
     return Scaffold(
       appBar: AppBar(title: const Text('Themes')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _openCustomThemeScreen(),
-        tooltip: 'Create custom theme',
-        child: const Icon(Icons.add),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openCustomThemeScreen(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Custom Theme'),
       ),
       body: BlocBuilder<ThemeListBloc, ThemeListState>(
         builder: (context, state) {
           switch (state.status) {
             case ThemeListStatus.initial:
             case ThemeListStatus.loading:
-              return const LoadingScreen(message: 'Loading themes…');
-            case ThemeListStatus.error:
+              return const LoadingScreen();
+
+            case ThemeListStatus.failure:
               return ErrorScreen(
-                message: state.errorMessage ?? 'Failed to load themes.',
-                onRetry: () => context
-                    .read<ThemeListBloc>()
-                    .add(const ThemeListRequested()),
+                message: state.errorMessage ?? 'Something went wrong.',
+                onRetry: () =>
+                    context.read<ThemeListBloc>().add(const LoadThemes()),
               );
+
             case ThemeListStatus.loaded:
-              if (state.isEmpty) {
-                return const Center(child: Text('No themes available.'));
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.3,
+                ),
                 itemCount: state.themes.length,
                 itemBuilder: (context, index) {
                   final theme = state.themes[index];
-                  final isSelected = theme.id == activeTheme?.id;
-                  return _ThemeListTile(
+                  final isSelected = theme.id == state.selectedThemeId;
+                  return _ThemeCard(
                     theme: theme,
                     isSelected: isSelected,
-                    onTap: () => _selectTheme(theme),
-                    onEdit: theme.isCustom
-                        ? () => _openCustomThemeScreen(existingTheme: theme)
-                        : null,
+                    onTap: () => _applyTheme(context, theme.id),
                   );
                 },
               );
@@ -134,83 +123,72 @@ class _ThemeScreenViewState extends State<_ThemeScreenView> {
   }
 }
 
-class _ThemeListTile extends StatelessWidget {
+class _ThemeCard extends StatelessWidget {
   final AppThemeData theme;
   final bool isSelected;
   final VoidCallback onTap;
-  final VoidCallback? onEdit;
 
-  const _ThemeListTile({
+  const _ThemeCard({
     required this.theme,
     required this.isSelected,
     required this.onTap,
-    this.onEdit,
   });
 
+  Color _colorFromHex(String hex) {
+    final cleaned = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$cleaned', radix: 16));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
       onTap: onTap,
-      leading: _ThemeSwatch(theme: theme),
-      title: Text(theme.name),
-      subtitle: theme.isCustom ? const Text('Custom') : const Text('Default'),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isSelected)
-            Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary),
-          if (onEdit != null)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Edit',
-              onPressed: onEdit,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _colorFromHex(theme.backgroundColor),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? colorScheme.primary : Colors.black12,
+            width: isSelected ? 2.5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _swatch(_colorFromHex(theme.primaryColor)),
+                const SizedBox(width: 6),
+                _swatch(_colorFromHex(theme.accentColor)),
+                const Spacer(),
+                if (isSelected)
+                  Icon(Icons.check_circle, color: colorScheme.primary),
+              ],
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ThemeSwatch extends StatelessWidget {
-  final AppThemeData theme;
-
-  const _ThemeSwatch({required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.backgroundColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black12),
+            const Spacer(),
+            Text(
+              theme.name,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            if (theme.isCustom)
+              Text(
+                'Custom',
+                style: Theme.of(context).textTheme.labelSmall,
               ),
-            ),
-          ),
-          Positioned(
-            left: 4,
-            top: 4,
-            child: _dot(theme.primaryColor),
-          ),
-          Positioned(
-            right: 4,
-            bottom: 4,
-            child: _dot(theme.accentColor),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _dot(Color color) {
+  Widget _swatch(Color color) {
     return Container(
-      width: 14,
-      height: 14,
+      width: 20,
+      height: 20,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }

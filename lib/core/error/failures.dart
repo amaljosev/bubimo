@@ -1,44 +1,35 @@
 // lib/core/error/failures.dart
-import 'package:equatable/equatable.dart';
 
-/// Base class for all domain-layer failures.
-/// Repositories return `Either<Failure, T>` — never throw across the
-/// data/domain boundary. Data-layer exceptions (see exceptions.dart) are
-/// caught in repository impls and converted into one of these.
-abstract class Failure extends Equatable {
+sealed class Failure {
   final String message;
 
-  const Failure({required this.message});
+  const Failure(this.message);
 
   @override
-  List<Object?> get props => [message];
+  String toString() => message;
 }
 
-/// Wraps failures originating from local database operations (sqflite).
-class DatabaseFailure extends Failure {
-  const DatabaseFailure({required super.message});
+/// Something went wrong reading/writing to the local SQLite database.
+final class DatabaseFailure extends Failure {
+  const DatabaseFailure([super.message = 'A database error occurred.']);
 }
 
-/// Wraps failures originating from local cache/shared-preferences style
-/// storage (e.g. app_settings key-value reads/writes).
-class CacheFailure extends Failure {
-  const CacheFailure({required super.message});
+/// Something went wrong reading/writing local cached data (e.g. shared
+/// preferences, file system) that isn't the SQLite database itself.
+final class CacheFailure extends Failure {
+  const CacheFailure([super.message = 'A local storage error occurred.']);
 }
 
-/// Wraps failures from invalid input/domain rule violations
-/// (e.g. empty title where required, invalid date range).
-class ValidationFailure extends Failure {
-  const ValidationFailure({required super.message});
+/// Input provided by the user (or another layer) failed validation before
+/// it ever reached the data layer — e.g. empty theme name, invalid PIN
+/// format, malformed import file.
+final class ValidationFailure extends Failure {
+  const ValidationFailure([super.message = 'Invalid input provided.']);
 }
 
-/// Wraps failures from network calls (e.g. Supabase background packs,
-/// Google Drive backup/restore) once those milestones are implemented.
-class NetworkFailure extends Failure {
-  const NetworkFailure({required super.message});
-}
-
-/// Catch-all for anything unanticipated. Should be rare — prefer adding
-/// a specific Failure subtype over reaching for this.
-class UnexpectedFailure extends Failure {
-  const UnexpectedFailure({required super.message});
+/// Fallback for anything unexpected that doesn't map to a known failure
+/// type. Should be rare — prefer adding a specific Failure subtype when
+/// a new error case becomes common enough to handle distinctly.
+final class UnexpectedFailure extends Failure {
+  const UnexpectedFailure([super.message = 'An unexpected error occurred.']);
 }

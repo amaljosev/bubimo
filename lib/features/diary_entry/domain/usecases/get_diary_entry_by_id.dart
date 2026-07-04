@@ -6,7 +6,9 @@ import '../../../../core/error/failures.dart';
 import '../entities/diary_entry.dart';
 import '../repositories/diary_repository.dart';
 
-/// Fetches a single diary entry by its id.
+/// Fetches a single diary entry by id.
+///
+/// Usage: `await getDiaryEntryById(entryId)`.
 class GetDiaryEntryById {
   final DiaryRepository repository;
 

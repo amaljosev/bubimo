@@ -6,11 +6,12 @@ import '../../../../core/error/failures.dart';
 import '../entities/diary_entry.dart';
 import '../repositories/diary_repository.dart';
 
-/// Fetches all diary entries.
+/// Fetches all diary entries (excluding soft-deleted ones), most recent
+/// first. Used directly by Home's list bloc, and reused by Favorites
+/// (in-memory filter by `isFavorite`) and Analytics (derived
+/// computations) rather than each needing its own fetch method.
 ///
-/// Milestone 1: no sorting/filtering params — returns whatever order the
-/// data source provides. Milestone 2 will extend this (or add a variant)
-/// for date-based sort/filter.
+/// Usage: `await getAllDiaryEntries()`.
 class GetAllDiaryEntries {
   final DiaryRepository repository;
 

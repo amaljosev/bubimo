@@ -1,106 +1,74 @@
 // lib/core/router/app_router.dart
 
-import 'package:flutter/material.dart';
+import 'package:bubimo/features/diary_entry/presentation/pages/home_page.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/diary_entry/domain/entities/diary_entry.dart';
+import '../../features/analytics/presentation/pages/analytics_screen.dart';
 import '../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
 import '../../features/diary_entry/presentation/pages/diary_form_page.dart';
-import '../../features/diary_entry/presentation/pages/home_page.dart';
-import '../../features/theme/domain/entities/app_theme_data.dart';
+import '../../features/reminders/presentation/pages/reminder_settings_page.dart';
 import '../../features/theme/presentation/pages/custom_theme_screen.dart';
 import '../../features/theme/presentation/pages/theme_screen.dart';
 
-/// Route name constants, used both for `GoRoute.name` and for
-/// `context.goNamed(...)` calls elsewhere in the app.
-abstract final class AppRoutes {
-  static const onboarding = 'onboarding';
-  static const home = 'home';
-  static const diaryForm = 'diaryForm';
-  static const diaryEntryView = 'diaryEntryView';
-  static const themeScreen = 'themeScreen';
-  static const customThemeForm = 'customThemeForm';
+/// Centralized route path constants. Use these instead of raw strings
+/// when navigating, to avoid typos and make renames a one-line change.
+class AppRoutes {
+  AppRoutes._();
+
+  static const String home = '/';
+  static const String diaryForm = '/diary-form';
+  static const String diaryView = '/diary-view';
+  static const String themeScreen = '/theme';
+  static const String customThemeScreen = '/theme/custom';
+  static const String analyticsScreen = '/analytics';
+  static const String reminderSettings = '/reminders';
 }
 
-/// App-wide router configuration.
+/// App-wide router. Add new routes here as each milestone introduces new
+/// screens — this file is updated incrementally, never regenerated from
+/// scratch, so existing routes/behavior are preserved.
 ///
-/// `diaryForm` accepts an optional [DiaryEntry] via `extra` (to seed the
-/// form when editing). `diaryEntryView` takes an `id` path parameter — it
-/// fetches its own data via `DiaryViewBloc` (see
-/// `diary_entry_view_page.dart`), so no `extra` object is passed.
-///
-/// `onEdit` here is intentionally just raw navigation (push the form,
-/// return the result) — `DiaryEntryViewPage` itself decides whether to
-/// refresh its own bloc based on that result, since it's the one that
-/// owns the `DiaryViewBloc` instance needing refreshing. Keeping that
-/// decision in the page (not here) avoids reading a bloc from a
-/// `BuildContext` that sits above where the bloc is actually provided.
+/// Diary Lock, Backup & Restore, Import & Export, Search, Onboarding,
+/// and Settings Hub routes are intentionally not yet added — those
+/// features haven't been generated yet.
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/home',
+  initialLocation: AppRoutes.home,
   routes: [
     GoRoute(
-      path: '/',
-      name: AppRoutes.onboarding,
-      builder: (context, state) => const _PlaceholderScreen(
-        screenName: 'Onboarding',
-      ),
-    ),
-    GoRoute(
-      path: '/home',
-      name: AppRoutes.home,
+      path: AppRoutes.home,
       builder: (context, state) => const HomePage(),
     ),
     GoRoute(
-      path: '/diary-form',
-      name: AppRoutes.diaryForm,
+      path: AppRoutes.diaryForm,
       builder: (context, state) {
-        final existingEntry = state.extra as DiaryEntry?;
-        return DiaryFormPage(
-          existingEntry: existingEntry,
-          onSaved: () => context.pop(true),
-        );
+        // Pass an existing entry id via `extra` to open in edit mode;
+        // omit it (or pass null) to open in create mode.
+        final entryId = state.extra as String?;
+        return DiaryFormPage(entryId: entryId);
       },
     ),
     GoRoute(
-      path: '/diary-entry/:id',
-      name: AppRoutes.diaryEntryView,
+      path: AppRoutes.diaryView,
       builder: (context, state) {
-        final entryId = state.pathParameters['id']!;
-        return DiaryEntryViewPage(
-          entryId: entryId,
-          onEdit: (entry) => context.pushNamed<bool>(
-            AppRoutes.diaryForm,
-            extra: entry,
-          ),
-          onDeleted: () => context.pop(true),
-        );
+        final entryId = state.extra as String;
+        return DiaryEntryViewPage(entryId: entryId);
       },
     ),
     GoRoute(
-      path: '/theme',
-      name: AppRoutes.themeScreen,
+      path: AppRoutes.themeScreen,
       builder: (context, state) => const ThemeScreen(),
     ),
     GoRoute(
-      path: '/custom-theme-form',
-      name: AppRoutes.customThemeForm,
-      builder: (context, state) {
-        final existingTheme = state.extra as AppThemeData?;
-        return CustomThemeScreen(existingTheme: existingTheme);
-      },
+      path: AppRoutes.customThemeScreen,
+      builder: (context, state) => const CustomThemeScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.analyticsScreen,
+      builder: (context, state) => const AnalyticsScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.reminderSettings,
+      builder: (context, state) => const ReminderSettingsPage(),
     ),
   ],
 );
-
-class _PlaceholderScreen extends StatelessWidget {
-  const _PlaceholderScreen({required this.screenName});
-
-  final String screenName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text(screenName)),
-    );
-  }
-}

@@ -2,73 +2,77 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/theme/theme_mapper.dart';
+import '../../../../core/error/failures.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../../domain/usecases/get_selected_theme.dart';
 import '../../domain/usecases/select_theme.dart';
 
-/// Holds the app's currently active [ThemeData], provided ABOVE
-/// `MaterialApp` (see `main.dart`) so that any theme change triggers a
-/// full app rebuild with the new theme live — no restart required.
+/// Holds the app's CURRENT active [ThemeData] and is provided ABOVE
+/// `MaterialApp`, so any theme change rebuilds the whole app live —
+/// no restart required.
 ///
-/// State is `ThemeData` directly, since this Cubit sits at the
-/// `MaterialApp` boundary specifically to serve `MaterialApp.theme`.
-/// `loadInitialTheme`/`changeTheme` return `bool` (success/failure)
-/// rather than folding failure silently, so callers (e.g.
-/// `ThemeScreen`) can surface an error to the user.
-///
-/// Registered as a `LazySingleton` in GetIt — must persist for the app's
-/// entire lifetime, shared by exactly one `BlocProvider` at the root of
-/// the widget tree.
+/// This is registered as a lazy singleton in GetIt (not a factory),
+/// since it must persist for the app's entire lifetime.
 class AppThemeCubit extends Cubit<ThemeData> {
   final GetSelectedTheme getSelectedTheme;
   final SelectTheme selectTheme;
 
-  /// The currently active theme's full domain entity — retained
-  /// alongside the emitted `ThemeData` state so `ThemeListBloc`/
-  /// `ThemeScreen` can compare "is this list item the selected one?" by
-  /// id without this Cubit needing a second, parallel state shape.
-  AppThemeData? _activeTheme;
-
-  AppThemeData? get activeTheme => _activeTheme;
+  /// The domain data behind the current [state], kept alongside it so
+  /// screens (e.g. Theme Screen) can read which theme id is active
+  /// without a separate query.
+  AppThemeData? currentTheme;
 
   AppThemeCubit({
     required this.getSelectedTheme,
     required this.selectTheme,
-  }) : super(ThemeData.light());
+  }) : super(AppTheme.light());
 
-  /// Loads the persisted selected theme and emits its `ThemeData`. Call
-  /// once on app start (see `main.dart`). Returns `true` on success,
-  /// `false` on failure (in which case the Cubit's initial fallback
-  /// `ThemeData.light()` state remains active).
-  Future<bool> loadInitialTheme() async {
+  /// Loads the user's previously selected theme. Call this once during
+  /// app startup, before `runApp`, so the correct theme is active on
+  /// first frame instead of flashing the fallback default.
+  Future<void> loadInitialTheme() async {
     final result = await getSelectedTheme();
-    return result.fold(
-      (failure) => false,
+    result.match(
+      (_) {
+        // Fall back silently to the default ThemeData already set as
+        // this cubit's initial state — there's nothing meaningful to
+        // show the user for a startup theme-load failure.
+      },
       (theme) {
-        _activeTheme = theme;
-        emit(buildThemeData(theme));
-        return true;
+        currentTheme = theme;
+        emit(_buildThemeData(theme));
       },
     );
   }
 
-  /// Changes the active theme to [theme]: persists the selection via
-  /// [SelectTheme], then emits the new `ThemeData` on success — this
-  /// emission is what makes the change apply app-wide immediately, since
-  /// `MaterialApp` (in `main.dart`) rebuilds on every emission from this
-  /// Cubit. Returns `true`/`false` so callers can show their own error
-  /// feedback on failure.
-  Future<bool> changeTheme(AppThemeData theme) async {
-    final result = await selectTheme(theme.id);
-    return result.fold(
-      (failure) => false,
-      (_) {
-        _activeTheme = theme;
-        emit(buildThemeData(theme));
-        return true;
+  /// Persists [themeId] as the selection and applies it immediately.
+  Future<Either<Failure, void>> changeTheme(String themeId) async {
+    final selectResult = await selectTheme(themeId);
+    if (selectResult.isLeft()) return selectResult;
+
+    final selectedResult = await getSelectedTheme();
+    return selectedResult.match(
+      (failure) => Left(failure),
+      (theme) {
+        currentTheme = theme;
+        emit(_buildThemeData(theme));
+        return const Right(null);
       },
     );
+  }
+
+  ThemeData _buildThemeData(AppThemeData theme) {
+    final base = AppTheme.light(seedColor: _colorFromHex(theme.primaryColor));
+    return base.copyWith(
+      scaffoldBackgroundColor: _colorFromHex(theme.backgroundColor),
+    );
+  }
+
+  Color _colorFromHex(String hex) {
+    final cleaned = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$cleaned', radix: 16));
   }
 }

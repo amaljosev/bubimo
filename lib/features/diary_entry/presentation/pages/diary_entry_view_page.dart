@@ -1,202 +1,268 @@
 // lib/features/diary_entry/presentation/pages/diary_entry_view_page.dart
 
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:get_it/get_it.dart';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/di/injection.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/utils/date_utils.dart';
+import '../../../../core/widgets/error_screen.dart';
+import '../../../../core/widgets/loading_screen.dart';
 import '../../domain/entities/diary_entry.dart';
 import '../../domain/usecases/delete_diary_entry.dart';
-import '../bloc/diary_view/diary_view_bloc.dart';
+import '../../domain/usecases/get_diary_entry_by_id.dart';
+import '../../domain/usecases/update_diary_entry.dart';
 import '../widgets/confirm_delete_dialog.dart';
 
-/// Entry View Screen — displays title/content/date/mood, edit/delete.
+/// Displays a single diary entry in full, with favorite toggle, edit,
+/// and delete actions.
 ///
-/// Fetches the entry fresh by [entryId] via [DiaryViewBloc] rather than
-/// receiving a [DiaryEntry] directly — after a successful edit, this
-/// screen re-dispatches [DiaryViewRequested] on its own bloc and always
-/// shows current DB state, without popping back through Home.
+/// This screen has no dedicated bloc — it loads the entry directly via
+/// [GetDiaryEntryById] and mutates it via the same generic
+/// [UpdateDiaryEntry]/[DeleteDiaryEntry] use cases every other feature
+/// uses, since its state is simple enough not to warrant one.
 ///
-/// [onEdit] is a raw navigation callback (push the form, return the push
-/// result) — refreshing on successful edit is handled internally by this
-/// screen (it owns the [DiaryViewBloc] instance that needs refreshing),
-/// not by the router.
-class DiaryEntryViewPage extends StatelessWidget {
+/// Pops with `true` if anything changed (favorite toggled, entry
+/// edited, or entry deleted) so Home knows to refresh its list; pops
+/// with `false` if the user just navigated back with no changes.
+class DiaryEntryViewPage extends StatefulWidget {
   final String entryId;
-  final Future<bool?> Function(DiaryEntry entry) onEdit;
-  final VoidCallback onDeleted;
 
-  const DiaryEntryViewPage({
-    super.key,
-    required this.entryId,
-    required this.onEdit,
-    required this.onDeleted,
-  });
+  const DiaryEntryViewPage({super.key, required this.entryId});
 
   @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => GetIt.instance<DiaryViewBloc>()
-        ..add(DiaryViewRequested(entryId)),
-      child: _DiaryEntryViewBody(
-        entryId: entryId,
-        onEdit: onEdit,
-        onDeleted: onDeleted,
-      ),
-    );
-  }
+  State<DiaryEntryViewPage> createState() => _DiaryEntryViewPageState();
 }
 
-class _DiaryEntryViewBody extends StatefulWidget {
-  final String entryId;
-  final Future<bool?> Function(DiaryEntry entry) onEdit;
-  final VoidCallback onDeleted;
+class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
+  final GetDiaryEntryById _getDiaryEntryById = getIt<GetDiaryEntryById>();
+  final UpdateDiaryEntry _updateDiaryEntry = getIt<UpdateDiaryEntry>();
+  final DeleteDiaryEntry _deleteDiaryEntry = getIt<DeleteDiaryEntry>();
 
-  const _DiaryEntryViewBody({
-    required this.entryId,
-    required this.onEdit,
-    required this.onDeleted,
-  });
-
-  @override
-  State<_DiaryEntryViewBody> createState() => _DiaryEntryViewBodyState();
-}
-
-class _DiaryEntryViewBodyState extends State<_DiaryEntryViewBody> {
+  DiaryEntry? _entry;
+  quill.QuillController? _viewController;
+  String? _errorMessage;
+  bool _isLoading = true;
+  bool _isTogglingFavorite = false;
   bool _isDeleting = false;
-  bool _isNavigatingToEdit = false;
+  bool _hasChanges = false;
 
-  Future<void> _handleDelete(DiaryEntry entry) async {
-    final confirmed = await showConfirmDeleteDialog(context);
-    if (confirmed != true || !mounted) return;
+  @override
+  void initState() {
+    super.initState();
+    _loadEntry();
+  }
 
-    setState(() => _isDeleting = true);
+  @override
+  void dispose() {
+    _viewController?.dispose();
+    super.dispose();
+  }
 
-    final deleteDiaryEntry = GetIt.instance<DeleteDiaryEntry>();
-    final result = await deleteDiaryEntry(entry.id!);
+  Future<void> _loadEntry() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await _getDiaryEntryById(widget.entryId);
 
     if (!mounted) return;
 
-    result.fold(
+    result.match(
+      (failure) => setState(() {
+        _isLoading = false;
+        _errorMessage = failure.message;
+      }),
+      (entry) => setState(() {
+        _isLoading = false;
+        _entry = entry;
+        _viewController?.dispose();
+        _viewController = quill.QuillController(
+          document: _documentFromContent(entry.content ?? ''),
+          selection: const TextSelection.collapsed(offset: 0),
+          readOnly: true,
+        );
+      }),
+    );
+  }
+
+  /// Parses stored Quill Delta JSON into a [quill.Document]. Falls back
+  /// to a blank/plain-text document if it isn't valid Delta JSON —
+  /// covers legacy plain-text entries saved before the rich editor
+  /// existed.
+  quill.Document _documentFromContent(String rawContent) {
+    final trimmed = rawContent.trim();
+    if (trimmed.isEmpty) return quill.Document();
+
+    try {
+      final decoded = jsonDecode(trimmed);
+      return quill.Document.fromJson(decoded as List);
+    } catch (_) {
+      return quill.Document()..insert(0, trimmed);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    // Guard against duplicate taps firing overlapping updates.
+    if (_isTogglingFavorite || _entry == null) return;
+
+    setState(() => _isTogglingFavorite = true);
+
+    final updated = _entry!.copyWith(
+      isFavorite: !_entry!.isFavorite,
+      updatedAt: DateTime.now(),
+    );
+    final result = await _updateDiaryEntry(updated);
+
+    if (!mounted) return;
+
+    result.match(
+      (failure) {
+        setState(() => _isTogglingFavorite = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failure.message)),
+        );
+      },
+      (_) => setState(() {
+        _entry = updated;
+        _isTogglingFavorite = false;
+        _hasChanges = true;
+      }),
+    );
+  }
+
+  Future<void> _editEntry() async {
+    final result = await context.push<bool>(
+      AppRoutes.diaryForm,
+      extra: widget.entryId,
+    );
+
+    if (result == true) {
+      _hasChanges = true;
+      await _loadEntry();
+    }
+  }
+
+  Future<void> _deleteEntry() async {
+    if (_isDeleting) return;
+
+    final confirmed = await showConfirmDeleteDialog(context);
+    if (confirmed != true) return;
+
+    setState(() => _isDeleting = true);
+
+    final result = await _deleteDiaryEntry(widget.entryId);
+
+    if (!mounted) return;
+
+    result.match(
       (failure) {
         setState(() => _isDeleting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(failure.message)),
         );
       },
-      (_) => widget.onDeleted(),
+      (_) => context.pop(true),
     );
-  }
-
-  /// Pushes the edit form via [widget.onEdit] and, if it reports a
-  /// successful save, re-dispatches [DiaryViewRequested] on this screen's
-  /// own [DiaryViewBloc] — this is what shows the freshly saved data
-  /// after returning from Edit, without this screen ever being popped.
-  Future<void> _handleEdit(DiaryEntry entry) async {
-    if (_isNavigatingToEdit) return;
-    _isNavigatingToEdit = true;
-    try {
-      final result = await widget.onEdit(entry);
-      if (result == true && mounted) {
-        context.read<DiaryViewBloc>().add(DiaryViewRequested(widget.entryId));
-      }
-    } finally {
-      _isNavigatingToEdit = false;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<DiaryViewBloc, DiaryViewState>(
-      builder: (context, state) {
-        final entry = state is DiaryViewLoaded ? state.entry : null;
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Entry'),
-            actions: entry == null
-                ? null
-                : [
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => _handleEdit(entry),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: _isDeleting ? null : () => _handleDelete(entry),
-                    ),
-                  ],
-          ),
-          body: _buildBody(context, state),
-        );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) context.pop(_hasChanges);
       },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Diary Entry'),
+          actions: _entry == null
+              ? null
+              : [
+                  IconButton(
+                    icon: _isTogglingFavorite
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            _entry!.isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                          ),
+                    onPressed: _isTogglingFavorite ? null : _toggleFavorite,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: _editEntry,
+                  ),
+                  IconButton(
+                    icon: _isDeleting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.delete_outline),
+                    onPressed: _isDeleting ? null : _deleteEntry,
+                  ),
+                ],
+        ),
+        body: _buildBody(),
+      ),
     );
   }
 
-  Widget _buildBody(BuildContext context, DiaryViewState state) {
-    if (_isDeleting) {
-      return const Center(child: CircularProgressIndicator());
+  Widget _buildBody() {
+    if (_isLoading) return const LoadingScreen();
+
+    if (_errorMessage != null) {
+      return ErrorScreen(message: _errorMessage!, onRetry: _loadEntry);
     }
 
-    if (state is DiaryViewLoading || state is DiaryViewInitial) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    final entry = _entry!;
 
-    if (state is DiaryViewError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(state.message, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () => context
-                    .read<DiaryViewBloc>()
-                    .add(DiaryViewRequested(widget.entryId)),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (entry.mood != null)
+          Text(entry.mood!.emoji, style: const TextStyle(fontSize: 32)),
+        const SizedBox(height: 8),
+        Text(
+          entry.title?.isNotEmpty == true ? entry.title! : 'Untitled',
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
-      );
-    }
-
-    final entry = (state as DiaryViewLoaded).entry;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (entry.mood != null) ...[
-                Text(entry.mood!.emoji, style: const TextStyle(fontSize: 28)),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: Text(
-                  entry.title,
-                  style: Theme.of(context).textTheme.headlineSmall,
+        const SizedBox(height: 4),
+        Text(
+          AppDateUtils.toDisplayString(entry.date),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        if (_viewController != null)
+          quill.QuillEditor.basic(
+            controller: _viewController!,
+            config: quill.QuillEditorConfig(
+              embedBuilders: FlutterQuillEmbeds.editorBuilders(
+                imageEmbedConfig: QuillEditorImageEmbedConfig(
+                  imageProviderBuilder: (context, imageSource) {
+                    if (imageSource.startsWith('http://') ||
+                        imageSource.startsWith('https://')) {
+                      return NetworkImage(imageSource);
+                    }
+                    return FileImage(File(imageSource));
+                  },
                 ),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _formatDate(entry.date),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-          Text(entry.content),
-        ],
-      ),
+      ],
     );
   }
 }

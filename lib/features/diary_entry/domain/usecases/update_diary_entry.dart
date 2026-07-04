@@ -6,18 +6,23 @@ import '../../../../core/error/failures.dart';
 import '../entities/diary_entry.dart';
 import '../repositories/diary_repository.dart';
 
-/// Updates an existing diary entry.
+/// Persists changes to an existing diary entry.
 ///
-/// Caller is responsible for setting `updatedAt` on the entry before
-/// passing it in (kept explicit rather than stamped here, so later
-/// milestones — e.g. streak logic relying on updatedAt — have full
-/// visibility into when/why it changes).
+/// This is intentionally the ONLY update use case in the app. Every
+/// future feature that changes a field on an entry — mood, favorite
+/// toggle, tags, background, stickers, font, rich content — builds an
+/// updated entity via `entry.copyWith(...)` and passes it here, rather
+/// than each feature adding its own narrow use case (e.g. avoid creating
+/// a separate `ToggleFavorite` use case; just call this with
+/// `entry.copyWith(isFavorite: !entry.isFavorite)`).
+///
+/// Usage: `await updateDiaryEntry(existingEntry.copyWith(isFavorite: true))`.
 class UpdateDiaryEntry {
   final DiaryRepository repository;
 
   const UpdateDiaryEntry(this.repository);
 
-  Future<Either<Failure, DiaryEntry>> call(DiaryEntry entry) {
+  Future<Either<Failure, void>> call(DiaryEntry entry) {
     return repository.updateEntry(entry);
   }
 }

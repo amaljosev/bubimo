@@ -7,12 +7,14 @@ import '../entities/diary_entry.dart';
 import '../repositories/diary_repository.dart';
 
 /// Creates a new diary entry.
+///
+/// Usage: `await createDiaryEntry(newEntry)`.
 class CreateDiaryEntry {
   final DiaryRepository repository;
 
   const CreateDiaryEntry(this.repository);
 
-  Future<Either<Failure, DiaryEntry>> call(DiaryEntry entry) {
+  Future<Either<Failure, void>> call(DiaryEntry entry) {
     return repository.createEntry(entry);
   }
 }

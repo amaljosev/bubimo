@@ -1,18 +1,15 @@
 // lib/features/theme/data/models/app_theme_model.dart
 
-import 'package:flutter/material.dart';
-
+import '../../../../core/database/tables/custom_themes_table.dart';
 import '../../domain/entities/app_theme_data.dart';
 
-/// Data model for a theme — the sqflite-facing counterpart to the domain
-/// [AppThemeData] entity.
+/// Data-layer representation of [AppThemeData], responsible for
+/// converting between the domain entity and raw sqflite rows in the
+/// `custom_themes` table.
 ///
-/// Only CUSTOM themes are persisted to the `custom_themes` table via
-/// [fromMap]/[toMap] — the four bundled default themes are defined below
-/// as a static const list and never touch the database. Colors are stored
-/// as their 32-bit ARGB integer value (`Color.toARGB32()` /
-/// `Color(argb)`), the standard way to persist a Flutter `Color` in a
-/// TEXT/INTEGER sqflite column.
+/// Also hosts the static list of built-in default theme presets — these
+/// are NOT stored in the database, they're fixed app data. Only
+/// user-created custom themes are persisted.
 class AppThemeModel extends AppThemeData {
   const AppThemeModel({
     required super.id,
@@ -24,34 +21,8 @@ class AppThemeModel extends AppThemeData {
     super.headerImagePath,
   });
 
-  /// Builds an [AppThemeModel] from a `custom_themes` table row.
-  /// `isCustom` is always `true` for rows read from this table — only
-  /// custom themes are ever persisted here.
-  factory AppThemeModel.fromMap(Map<String, dynamic> map) {
-    return AppThemeModel(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      isCustom: true,
-      primaryColor: Color(map['primary_color'] as int),
-      backgroundColor: Color(map['background_color'] as int),
-      accentColor: Color(map['accent_color'] as int),
-      headerImagePath: map['header_image_path'] as String?,
-    );
-  }
-
-  /// Converts this model to a `Map<String, dynamic>` suitable for
-  /// `Database.insert`/`Database.update` against `custom_themes`.
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'primary_color': primaryColor.toARGB32(),
-      'background_color': backgroundColor.toARGB32(),
-      'accent_color': accentColor.toARGB32(),
-      'header_image_path': headerImagePath,
-    };
-  }
-
+  /// Builds an [AppThemeModel] from a domain [AppThemeData], so the data
+  /// layer can persist an entity constructed by the Custom Theme Screen.
   factory AppThemeModel.fromEntity(AppThemeData theme) {
     return AppThemeModel(
       id: theme.id,
@@ -64,48 +35,81 @@ class AppThemeModel extends AppThemeData {
     );
   }
 
-  /// The four bundled default themes, always available regardless of
-  /// database state. Each seeds a Material 3 `ColorScheme` via
-  /// `ColorScheme.fromSeed` at the point of `ThemeData` conversion (see
-  /// `core/theme/theme_mapper.dart`) rather than hand-specifying every
-  /// color role — `primaryColor`/`accentColor` here are seed colors, not
-  /// literal UI colors.
-  ///
-  /// `backgroundColor`'s luminance determines light vs. dark `Brightness`
-  /// in the mapper — deliberately not stored as a separate `isDark` flag,
-  /// since it can be derived and that avoids the two ever disagreeing.
+  /// Builds an [AppThemeModel] from a raw `custom_themes` row. All rows
+  /// in this table are user-created, so [isCustom] is always true here.
+  factory AppThemeModel.fromMap(Map<String, Object?> map) {
+    return AppThemeModel(
+      id: map[CustomThemesTable.columnId] as String,
+      name: map[CustomThemesTable.columnName] as String,
+      isCustom: true,
+      primaryColor: map[CustomThemesTable.columnPrimaryColor] as String,
+      backgroundColor:
+          map[CustomThemesTable.columnBackgroundColor] as String,
+      accentColor: map[CustomThemesTable.columnAccentColor] as String,
+      headerImagePath:
+          map[CustomThemesTable.columnHeaderImagePath] as String?,
+    );
+  }
+
+  /// Converts this model into a raw `custom_themes` row for insert/update.
+  /// [createdAt] is only needed on insert — callers pass the original
+  /// value back on update so it's never overwritten.
+  Map<String, Object?> toMap({required String createdAt}) {
+    return {
+      CustomThemesTable.columnId: id,
+      CustomThemesTable.columnName: name,
+      CustomThemesTable.columnPrimaryColor: primaryColor,
+      CustomThemesTable.columnBackgroundColor: backgroundColor,
+      CustomThemesTable.columnAccentColor: accentColor,
+      CustomThemesTable.columnHeaderImagePath: headerImagePath,
+      CustomThemesTable.columnCreatedAt: createdAt,
+    };
+  }
+
+  /// Built-in default theme presets, shown alongside custom themes on
+  /// the Theme Screen. Colors are hex strings, consistent with how
+  /// custom themes are stored — the presentation layer parses these
+  /// into `Color` when building actual `ThemeData`.
   static const List<AppThemeModel> defaultThemes = [
     AppThemeModel(
-      id: 'default_indigo',
-      name: 'Indigo',
+      id: 'default_lavender',
+      name: 'Lavender',
       isCustom: false,
-      primaryColor: Color(0xFF3F51B5), // Indigo — seed color
-      backgroundColor: Color(0xFFFAFAFC), // near-white → light theme
-      accentColor: Color(0xFFFF7043), // warm coral accent
+      primaryColor: '#6750A4',
+      backgroundColor: '#FFFBFE',
+      accentColor: '#7D5260',
     ),
     AppThemeModel(
-      id: 'default_teal',
-      name: 'Teal',
+      id: 'default_ocean',
+      name: 'Ocean',
       isCustom: false,
-      primaryColor: Color(0xFF00897B), // Teal — seed color
-      backgroundColor: Color(0xFFF7FBFA), // near-white → light theme
-      accentColor: Color(0xFFFFC107), // amber accent
+      primaryColor: '#006874',
+      backgroundColor: '#F5FDFF',
+      accentColor: '#4A6363',
     ),
     AppThemeModel(
-      id: 'default_terracotta',
-      name: 'Terracotta',
+      id: 'default_sunset',
+      name: 'Sunset',
       isCustom: false,
-      primaryColor: Color(0xFFBF5B3F), // warm terracotta — seed color
-      backgroundColor: Color(0xFFFDF6F2), // warm off-white → light theme
-      accentColor: Color(0xFF6D8B74), // sage green accent
+      primaryColor: '#9C4146',
+      backgroundColor: '#FFF8F6',
+      accentColor: '#77574C',
+    ),
+    AppThemeModel(
+      id: 'default_forest',
+      name: 'Forest',
+      isCustom: false,
+      primaryColor: '#3A6A3E',
+      backgroundColor: '#F7FDF2',
+      accentColor: '#54634E',
     ),
     AppThemeModel(
       id: 'default_midnight',
       name: 'Midnight',
       isCustom: false,
-      primaryColor: Color(0xFF9575CD), // soft violet — seed color
-      backgroundColor: Color(0xFF121218), // near-black → dark theme
-      accentColor: Color(0xFF4DD0E1), // cyan accent
+      primaryColor: '#4B5AA8',
+      backgroundColor: '#FAFBFF',
+      accentColor: '#5C5D72',
     ),
   ];
 }

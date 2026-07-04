@@ -1,64 +1,161 @@
 // lib/features/diary_entry/data/models/diary_entry_model.dart
 
+import 'dart:convert';
+
+import '../../../../core/database/tables/diary_entries_table.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/diary_entry.dart';
 import '../../domain/entities/mood.dart';
 
-/// Data model for `diary_entries` table row.
+/// Data-layer representation of [DiaryEntry], responsible for converting
+/// between the domain entity and the raw `Map<String, Object?>` sqflite
+/// reads/writes.
 ///
-/// Matches the actual schema from `core/di/injection.dart`'s `onCreate`:
-/// `id TEXT PRIMARY KEY`, `date TEXT`, `created_at TEXT`, `updated_at TEXT`
-/// — all timestamps stored as ISO-8601 strings (`DateTime.toIso8601String()`
-/// / `DateTime.parse()`), not millisecond ints. Milestone 2 adds `mood TEXT`
-/// (nullable), read/written via `Mood.toStorageString()`/`fromStorageString()`.
-///
-/// Later milestones will extend `toMap`/`fromMap` further for images,
-/// stickers, bg_*, font_family, tags, word_count, is_favorite, is_deleted
-/// etc. as those columns are introduced — this model is expected to grow,
-/// not be replaced.
+/// Covers every column in the final `diary_entries` schema. List fields
+/// ([stickers], [images], [tags]) are stored as JSON-encoded TEXT since
+/// SQLite has no native array type.
 class DiaryEntryModel extends DiaryEntry {
   const DiaryEntryModel({
-    super.id,
-    required super.title,
-    required super.content,
+    required super.id,
+    super.title,
     required super.date,
+    super.content,
+    super.preview,
+    super.mood,
+    super.imagePath,
+    super.bgColor,
+    super.bgImagePath,
+    super.bgGalleryImagePath,
+    super.bgLocalPath,
+    super.stickers,
+    super.images,
+    super.tags,
+    super.wordCount,
+    super.fontFamily,
+    super.isFavorite,
+    super.isDeleted,
+    super.deletedAt,
     required super.createdAt,
     required super.updatedAt,
-    super.mood,
   });
 
-  factory DiaryEntryModel.fromMap(Map<String, dynamic> map) {
-    return DiaryEntryModel(
-      id: map['id'] as String?,
-      title: map['title'] as String,
-      content: map['content'] as String,
-      date: DateTime.parse(map['date'] as String),
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
-      mood: Mood.fromStorageString(map['mood'] as String?),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      if (id != null) 'id': id,
-      'title': title,
-      'content': content,
-      'date': date.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
-      'updated_at': updatedAt.toIso8601String(),
-      'mood': mood?.toStorageString(),
-    };
-  }
-
+  /// Builds a [DiaryEntryModel] from a domain [DiaryEntry], so the data
+  /// layer can persist an entity constructed/updated by a use case
+  /// (typically via `entry.copyWith(...)`).
   factory DiaryEntryModel.fromEntity(DiaryEntry entry) {
     return DiaryEntryModel(
       id: entry.id,
       title: entry.title,
-      content: entry.content,
       date: entry.date,
+      content: entry.content,
+      preview: entry.preview,
+      mood: entry.mood,
+      imagePath: entry.imagePath,
+      bgColor: entry.bgColor,
+      bgImagePath: entry.bgImagePath,
+      bgGalleryImagePath: entry.bgGalleryImagePath,
+      bgLocalPath: entry.bgLocalPath,
+      stickers: entry.stickers,
+      images: entry.images,
+      tags: entry.tags,
+      wordCount: entry.wordCount,
+      fontFamily: entry.fontFamily,
+      isFavorite: entry.isFavorite,
+      isDeleted: entry.isDeleted,
+      deletedAt: entry.deletedAt,
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
-      mood: entry.mood,
     );
+  }
+
+  /// Builds a [DiaryEntryModel] from a raw sqflite row.
+  factory DiaryEntryModel.fromMap(Map<String, Object?> map) {
+    return DiaryEntryModel(
+      id: map[DiaryEntriesTable.columnId] as String,
+      title: map[DiaryEntriesTable.columnTitle] as String?,
+      date: AppDateUtils.fromStorageString(
+        map[DiaryEntriesTable.columnDate] as String,
+      ),
+      content: map[DiaryEntriesTable.columnContent] as String?,
+      preview: map[DiaryEntriesTable.columnPreview] as String?,
+      mood: Mood.fromStorageValue(
+        map[DiaryEntriesTable.columnMood] as String?,
+      ),
+      imagePath: map[DiaryEntriesTable.columnImagePath] as String?,
+      bgColor: map[DiaryEntriesTable.columnBgColor] as String?,
+      bgImagePath: map[DiaryEntriesTable.columnBgImagePath] as String?,
+      bgGalleryImagePath:
+          map[DiaryEntriesTable.columnBgGalleryImagePath] as String?,
+      bgLocalPath: map[DiaryEntriesTable.columnBgLocalPath] as String?,
+      stickers: _decodeStringList(
+        map[DiaryEntriesTable.columnStickers] as String?,
+      ),
+      images: _decodeStringList(
+        map[DiaryEntriesTable.columnImages] as String?,
+      ),
+      tags: _decodeStringList(map[DiaryEntriesTable.columnTags] as String?),
+      wordCount: (map[DiaryEntriesTable.columnWordCount] as int?) ?? 0,
+      fontFamily: map[DiaryEntriesTable.columnFontFamily] as String?,
+      isFavorite: (map[DiaryEntriesTable.columnIsFavorite] as int? ?? 0) == 1,
+      isDeleted: (map[DiaryEntriesTable.columnIsDeleted] as int? ?? 0) == 1,
+      deletedAt: map[DiaryEntriesTable.columnDeletedAt] != null
+          ? AppDateUtils.fromStorageString(
+              map[DiaryEntriesTable.columnDeletedAt] as String,
+            )
+          : null,
+      createdAt: AppDateUtils.fromStorageString(
+        map[DiaryEntriesTable.columnCreatedAt] as String,
+      ),
+      updatedAt: AppDateUtils.fromStorageString(
+        map[DiaryEntriesTable.columnUpdatedAt] as String,
+      ),
+    );
+  }
+
+  /// Converts this model into a raw sqflite row for insert/update.
+  Map<String, Object?> toMap() {
+    return {
+      DiaryEntriesTable.columnId: id,
+      DiaryEntriesTable.columnTitle: title,
+      DiaryEntriesTable.columnDate: AppDateUtils.toStorageString(date),
+      DiaryEntriesTable.columnContent: content,
+      DiaryEntriesTable.columnPreview: preview,
+      DiaryEntriesTable.columnMood: mood?.storageValue,
+      DiaryEntriesTable.columnImagePath: imagePath,
+      DiaryEntriesTable.columnBgColor: bgColor,
+      DiaryEntriesTable.columnBgImagePath: bgImagePath,
+      DiaryEntriesTable.columnBgGalleryImagePath: bgGalleryImagePath,
+      DiaryEntriesTable.columnBgLocalPath: bgLocalPath,
+      DiaryEntriesTable.columnStickers: _encodeStringList(stickers),
+      DiaryEntriesTable.columnImages: _encodeStringList(images),
+      DiaryEntriesTable.columnTags: _encodeStringList(tags),
+      DiaryEntriesTable.columnWordCount: wordCount,
+      DiaryEntriesTable.columnFontFamily: fontFamily,
+      DiaryEntriesTable.columnIsFavorite: isFavorite ? 1 : 0,
+      DiaryEntriesTable.columnIsDeleted: isDeleted ? 1 : 0,
+      DiaryEntriesTable.columnDeletedAt: deletedAt != null
+          ? AppDateUtils.toStorageString(deletedAt!)
+          : null,
+      DiaryEntriesTable.columnCreatedAt: AppDateUtils.toStorageString(
+        createdAt,
+      ),
+      DiaryEntriesTable.columnUpdatedAt: AppDateUtils.toStorageString(
+        updatedAt,
+      ),
+    };
+  }
+
+  static String? _encodeStringList(List<String> list) {
+    if (list.isEmpty) return null;
+    return jsonEncode(list);
+  }
+
+  static List<String> _decodeStringList(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded.map((e) => e.toString()).toList();
+    }
+    return const [];
   }
 }
