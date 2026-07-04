@@ -7,6 +7,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 import '../../../../../core/utils/id_generator.dart';
 import '../../../domain/entities/diary_entry.dart';
+import '../../../domain/entities/overlay_image.dart';
 import '../../../domain/usecases/create_diary_entry.dart';
 import '../../../domain/usecases/get_diary_entry_by_id.dart';
 import '../../../domain/usecases/update_diary_entry.dart';
@@ -56,6 +57,10 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     on<DiaryFormFontFamilyChanged>(_onFontFamilyChanged);
     on<DiaryFormStickerAdded>(_onStickerAdded);
     on<DiaryFormImageAdded>(_onImageAdded);
+    on<DiaryFormOverlayImageAdded>(_onOverlayImageAdded);
+    on<DiaryFormOverlayImageTransformed>(_onOverlayImageTransformed);
+    on<DiaryFormOverlayImageRemoved>(_onOverlayImageRemoved);
+    on<DiaryFormOverlayImageSelected>(_onOverlayImageSelected);
     on<DiaryFormBackgroundChanged>(_onBackgroundChanged);
     on<DiaryFormSubmitted>(_onSubmitted);
   }
@@ -93,6 +98,7 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             fontFamily: entry.fontFamily,
             stickers: entry.stickers,
             images: entry.images,
+            overlayImages: entry.overlayImages,
             bgImagePath: entry.bgImagePath,
             bgGalleryImagePath: entry.bgGalleryImagePath,
             bgLocalPath: entry.bgLocalPath,
@@ -151,6 +157,70 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     emit(state.copyWith(images: [...state.images, event.imagePath]));
   }
 
+  void _onOverlayImageAdded(
+    DiaryFormOverlayImageAdded event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final newImage = OverlayImage(
+      id: event.id,
+      path: event.path,
+      x: event.x,
+      y: event.y,
+    );
+    emit(
+      state.copyWith(
+        overlayImages: [...state.overlayImages, newImage],
+        selectedOverlayImageId: event.id,
+      ),
+    );
+  }
+
+  void _onOverlayImageTransformed(
+    DiaryFormOverlayImageTransformed event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final updated = state.overlayImages
+        .map(
+          (img) => img.id == event.id
+              ? img.copyWith(
+                  x: event.x,
+                  y: event.y,
+                  scale: event.scale,
+                  rotation: event.rotation,
+                )
+              : img,
+        )
+        .toList();
+    emit(state.copyWith(overlayImages: updated));
+  }
+
+  void _onOverlayImageRemoved(
+    DiaryFormOverlayImageRemoved event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final updated =
+        state.overlayImages.where((img) => img.id != event.id).toList();
+    final clearSelection = state.selectedOverlayImageId == event.id;
+    emit(
+      state.copyWith(
+        overlayImages: updated,
+        clearSelectedOverlayImage: clearSelection,
+      ),
+    );
+  }
+
+  void _onOverlayImageSelected(
+    DiaryFormOverlayImageSelected event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        selectedOverlayImageId: event.id,
+        clearSelectedOverlayImage: event.id == null,
+      ),
+    );
+  }
+
   void _onBackgroundChanged(
     DiaryFormBackgroundChanged event,
     Emitter<DiaryFormState> emit,
@@ -193,6 +263,7 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             fontFamily: state.fontFamily,
             stickers: state.stickers,
             images: state.images,
+            overlayImages: state.overlayImages,
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,
@@ -209,6 +280,7 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             fontFamily: state.fontFamily,
             stickers: state.stickers,
             images: state.images,
+            overlayImages: state.overlayImages,
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,

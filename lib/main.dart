@@ -4,7 +4,8 @@ import 'package:bubimo/core/config/secrets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
+import 'package:flutter_quill/flutter_quill.dart'
+    show FlutterQuillLocalizations;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/di/injection.dart';

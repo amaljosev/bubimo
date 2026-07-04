@@ -6,6 +6,7 @@ import '../../../../core/database/tables/diary_entries_table.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/diary_entry.dart';
 import '../../domain/entities/mood.dart';
+import '../../domain/entities/overlay_image.dart';
 
 /// Data-layer representation of [DiaryEntry], responsible for converting
 /// between the domain entity and the raw `Map<String, Object?>` sqflite
@@ -30,6 +31,7 @@ class DiaryEntryModel extends DiaryEntry {
     super.stickers,
     super.images,
     super.tags,
+    super.overlayImages,
     super.wordCount,
     super.fontFamily,
     super.isFavorite,
@@ -58,6 +60,7 @@ class DiaryEntryModel extends DiaryEntry {
       stickers: entry.stickers,
       images: entry.images,
       tags: entry.tags,
+      overlayImages: entry.overlayImages,
       wordCount: entry.wordCount,
       fontFamily: entry.fontFamily,
       isFavorite: entry.isFavorite,
@@ -94,6 +97,9 @@ class DiaryEntryModel extends DiaryEntry {
         map[DiaryEntriesTable.columnImages] as String?,
       ),
       tags: _decodeStringList(map[DiaryEntriesTable.columnTags] as String?),
+      overlayImages: _decodeOverlayImages(
+        map[DiaryEntriesTable.columnOverlayImages] as String?,
+      ),
       wordCount: (map[DiaryEntriesTable.columnWordCount] as int?) ?? 0,
       fontFamily: map[DiaryEntriesTable.columnFontFamily] as String?,
       isFavorite: (map[DiaryEntriesTable.columnIsFavorite] as int? ?? 0) == 1,
@@ -129,6 +135,8 @@ class DiaryEntryModel extends DiaryEntry {
       DiaryEntriesTable.columnStickers: _encodeStringList(stickers),
       DiaryEntriesTable.columnImages: _encodeStringList(images),
       DiaryEntriesTable.columnTags: _encodeStringList(tags),
+      DiaryEntriesTable.columnOverlayImages:
+          _encodeOverlayImages(overlayImages),
       DiaryEntriesTable.columnWordCount: wordCount,
       DiaryEntriesTable.columnFontFamily: fontFamily,
       DiaryEntriesTable.columnIsFavorite: isFavorite ? 1 : 0,
@@ -157,5 +165,34 @@ class DiaryEntryModel extends DiaryEntry {
       return decoded.map((e) => e.toString()).toList();
     }
     return const [];
+  }
+
+  static String? _encodeOverlayImages(List<OverlayImage> list) {
+    if (list.isEmpty) return null;
+    return jsonEncode(list.map((o) => o.toJson()).toList());
+  }
+
+  /// Malformed entries (missing/invalid fields) are skipped individually
+  /// rather than discarding the whole list, so one corrupt record can't
+  /// wipe out every other overlay image on the entry.
+  static List<OverlayImage> _decodeOverlayImages(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final result = <OverlayImage>[];
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          try {
+            result.add(OverlayImage.fromJson(item));
+          } catch (_) {
+            // Skip this single malformed record.
+          }
+        }
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
   }
 }

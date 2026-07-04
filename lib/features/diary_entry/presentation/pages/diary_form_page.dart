@@ -5,7 +5,10 @@ import 'dart:io';
 
 import 'package:bubimo/features/diary_entry/presentation/widgets/font_picker.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/image_picker_button.dart';
+import 'package:bubimo/features/diary_entry/presentation/widgets/overlay_image_picker_button.dart';
+import 'package:bubimo/features/diary_entry/presentation/widgets/overlay_layer.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/quill_toolbar.dart';
+import 'package:bubimo/features/diary_entry/presentation/widgets/resizable_image_embed_builder.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -14,9 +17,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../../../core/utils/id_generator.dart';
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
 import '../../../backgrounds/presentation/widgets/background_picker_widget.dart';
+import '../../domain/entities/overlay_image.dart';
 import '../bloc/diary_form/diary_form_bloc.dart';
 import '../bloc/diary_form/diary_form_event.dart';
 import '../bloc/diary_form/diary_form_state.dart';
@@ -51,6 +56,12 @@ class _DiaryFormView extends StatefulWidget {
 
 class _DiaryFormViewState extends State<_DiaryFormView> {
   final TextEditingController _titleController = TextEditingController();
+
+  // Defines the coordinate space and clamp bounds for overlay images —
+  // wraps the Quill editor container specifically (not the whole
+  // scrollable list), matching the old project's convention of
+  // confining overlay items to the text-entry area only.
+  final GlobalKey _editorBoundsKey = GlobalKey();
 
   // Created once the entry (or blank create form) has finished loading,
   // since Quill's controller needs its initial document up front rather
@@ -152,6 +163,62 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
   void _onImagePicked(String path) {
     _insertImageEmbed(path);
     _bloc.add(DiaryFormImageAdded(path));
+  }
+
+  /// Adds a new floating overlay photo — entirely separate from
+  /// [_onImagePicked]'s inline Quill embed. Finds an unoccupied spot
+  /// within the editor bounds so new photos don't stack directly on top
+  /// of each other or existing overlay images.
+  void _onOverlayImagePicked(String path) {
+    final bounds =
+        _editorBoundsKey.currentContext?.findRenderObject() as RenderBox?;
+    final position = OverlayLayer.findFreePosition(
+      bounds: bounds != null
+          ? Rect.fromLTWH(0, 0, bounds.size.width, bounds.size.height)
+          : null,
+      existingImages: _bloc.state.overlayImages,
+      width: OverlayImage.baseWidth,
+      height: OverlayImage.baseHeight,
+    );
+    _bloc.add(
+      DiaryFormOverlayImageAdded(
+        id: IdGenerator.generate(),
+        path: path,
+        x: position.dx,
+        y: position.dy,
+      ),
+    );
+  }
+
+  void _onOverlayImageSelect(String id) {
+    _bloc.add(DiaryFormOverlayImageSelected(id));
+  }
+
+  void _onOverlayImageDeselect() {
+    if (_bloc.state.selectedOverlayImageId == null) return;
+    _bloc.add(const DiaryFormOverlayImageSelected(null));
+  }
+
+  void _onOverlayImageTransform({
+    required String id,
+    required double x,
+    required double y,
+    required double scale,
+    required double rotation,
+  }) {
+    _bloc.add(
+      DiaryFormOverlayImageTransformed(
+        id: id,
+        x: x,
+        y: y,
+        scale: scale,
+        rotation: rotation,
+      ),
+    );
+  }
+
+  void _onOverlayImageRemove(String id) {
+    _bloc.add(DiaryFormOverlayImageRemoved(id));
   }
 
   void _applyFontFamily(String? fontFamily) {
@@ -268,6 +335,9 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
                 onPressed: () => _openStickerPicker(context),
               ),
               ImagePickerButton(onImageSelected: _onImagePicked),
+              OverlayImagePickerButton(
+                onImageSelected: _onOverlayImagePicked,
+              ),
             ],
           ),
           body: Container(
@@ -316,29 +386,41 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
                         onFontSelected: _applyFontFamily,
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        constraints: const BoxConstraints(minHeight: 240),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: backgroundImage != null
-                              ? Colors.white.withValues(alpha: 0.6)
-                              : null,
-                          border: Border.all(color: Colors.black12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: quill.QuillEditor.basic(
-                          controller: _quillController!,
-                          config: quill.QuillEditorConfig(
-                            embedBuilders: FlutterQuillEmbeds.editorBuilders(
-                              imageEmbedConfig: QuillEditorImageEmbedConfig(
-                                imageProviderBuilder: (context, imageSource) {
-                                  if (imageSource.startsWith('http://') ||
-                                      imageSource.startsWith('https://')) {
-                                    return NetworkImage(imageSource);
-                                  }
-                                  return FileImage(File(imageSource));
-                                },
-                              ),
+                      OverlayLayer(
+                        boundsKey: _editorBoundsKey,
+                        images: state.overlayImages,
+                        selectedImageId: state.selectedOverlayImageId,
+                        onSelect: _onOverlayImageSelect,
+                        onDeselect: _onOverlayImageDeselect,
+                        onTransform: _onOverlayImageTransform,
+                        onRemove: _onOverlayImageRemove,
+                        child: Container(
+                          key: _editorBoundsKey,
+                          constraints:
+                              const BoxConstraints(minHeight: 240),
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: backgroundImage != null
+                                ? Colors.white.withValues(alpha: 0.6)
+                                : null,
+                            border: Border.all(color: Colors.black12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: quill.QuillEditor.basic(
+                            controller: _quillController!,
+                            config: quill.QuillEditorConfig(
+                              embedBuilders: [
+                                // Custom builder first — Quill uses the
+                                // first builder whose `key` matches, so
+                                // this takes priority over the stock
+                                // image builder below for the image
+                                // embed type, giving it a working
+                                // drag-to-resize handle on every
+                                // platform (the stock builder only
+                                // resizes via a desktop context menu).
+                                ResizableImageEmbedBuilder(),
+                                ...FlutterQuillEmbeds.editorBuilders(),
+                              ],
                             ),
                           ),
                         ),

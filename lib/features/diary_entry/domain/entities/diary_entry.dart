@@ -3,6 +3,7 @@
 import 'package:equatable/equatable.dart';
 
 import 'mood.dart';
+import 'overlay_image.dart';
 
 /// Core domain entity representing a single diary entry.
 ///
@@ -32,6 +33,13 @@ class DiaryEntry extends Equatable {
   final List<String> images;
   final List<String> tags;
 
+  /// Free-floating, draggable/rotatable/resizable photos layered on top
+  /// of the Quill editor, each with its own absolute position/transform
+  /// data. Deliberately separate from [images], which tracks photos
+  /// inserted inline as Quill embeds — the two features are additive
+  /// and never share entries, so there's no collision between them.
+  final List<OverlayImage> overlayImages;
+
   final int wordCount;
   final String? fontFamily;
 
@@ -57,6 +65,7 @@ class DiaryEntry extends Equatable {
     this.stickers = const [],
     this.images = const [],
     this.tags = const [],
+    this.overlayImages = const [],
     this.wordCount = 0,
     this.fontFamily,
     this.isFavorite = false,
@@ -92,6 +101,7 @@ class DiaryEntry extends Equatable {
     List<String>? stickers,
     List<String>? images,
     List<String>? tags,
+    List<OverlayImage>? overlayImages,
     int? wordCount,
     String? fontFamily,
     bool? isFavorite,
@@ -115,6 +125,7 @@ class DiaryEntry extends Equatable {
       stickers: stickers ?? this.stickers,
       images: images ?? this.images,
       tags: tags ?? this.tags,
+      overlayImages: overlayImages ?? this.overlayImages,
       wordCount: wordCount ?? this.wordCount,
       fontFamily: fontFamily ?? this.fontFamily,
       isFavorite: isFavorite ?? this.isFavorite,
@@ -141,6 +152,7 @@ class DiaryEntry extends Equatable {
         stickers,
         images,
         tags,
+        overlayImages,
         wordCount,
         fontFamily,
         isFavorite,

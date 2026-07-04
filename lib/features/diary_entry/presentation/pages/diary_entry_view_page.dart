@@ -1,7 +1,6 @@
 // lib/features/diary_entry/presentation/pages/diary_entry_view_page.dart
 
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -18,6 +17,8 @@ import '../../domain/usecases/delete_diary_entry.dart';
 import '../../domain/usecases/get_diary_entry_by_id.dart';
 import '../../domain/usecases/update_diary_entry.dart';
 import '../widgets/confirm_delete_dialog.dart';
+import '../widgets/overlay_image_view.dart';
+import '../widgets/resizable_image_embed_builder.dart';
 
 /// Displays a single diary entry in full, with favorite toggle, edit,
 /// and delete actions.
@@ -246,21 +247,28 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
         ),
         const SizedBox(height: 16),
         if (_viewController != null)
-          quill.QuillEditor.basic(
-            controller: _viewController!,
-            config: quill.QuillEditorConfig(
-              embedBuilders: FlutterQuillEmbeds.editorBuilders(
-                imageEmbedConfig: QuillEditorImageEmbedConfig(
-                  imageProviderBuilder: (context, imageSource) {
-                    if (imageSource.startsWith('http://') ||
-                        imageSource.startsWith('https://')) {
-                      return NetworkImage(imageSource);
-                    }
-                    return FileImage(File(imageSource));
-                  },
+          // A plain Stack (not OverlayLayer) is enough here since
+          // view mode — overlay images just render at their saved
+          // position/scale/rotation, matching the editor's coordinate
+          // space exactly since both use the same OverlayImage data.
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              quill.QuillEditor.basic(
+                controller: _viewController!,
+                config: quill.QuillEditorConfig(
+                  embedBuilders: [
+                    ResizableImageEmbedBuilder(),
+                    ...FlutterQuillEmbeds.editorBuilders(),
+                  ],
                 ),
               ),
-            ),
+              for (final image in entry.overlayImages)
+                OverlayImageView(
+                  key: ValueKey(image.id),
+                  image: image,
+                ),
+            ],
           ),
       ],
     );

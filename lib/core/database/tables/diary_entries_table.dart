@@ -26,6 +26,12 @@ class DiaryEntriesTable {
   static const String columnStickers = 'stickers';
   static const String columnImages = 'images';
   static const String columnTags = 'tags';
+
+  /// JSON-encoded list of overlay image transform records (id, path, x,
+  /// y, scale, rotation) — free-floating photos layered on top of the
+  /// Quill editor. Kept separate from [columnImages], which tracks
+  /// inline Quill embed paths only.
+  static const String columnOverlayImages = 'overlay_images';
   static const String columnWordCount = 'word_count';
   static const String columnFontFamily = 'font_family';
   static const String columnIsFavorite = 'is_favorite';
@@ -50,6 +56,7 @@ class DiaryEntriesTable {
       $columnStickers TEXT,
       $columnImages TEXT,
       $columnTags TEXT,
+      $columnOverlayImages TEXT,
       $columnWordCount INTEGER NOT NULL DEFAULT 0,
       $columnFontFamily TEXT,
       $columnIsFavorite INTEGER NOT NULL DEFAULT 0,
