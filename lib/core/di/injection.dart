@@ -19,6 +19,12 @@ import '../../features/diary_entry/domain/usecases/get_diary_entry_by_id.dart';
 import '../../features/diary_entry/domain/usecases/update_diary_entry.dart';
 import '../../features/diary_entry/presentation/bloc/diary_form/diary_form_bloc.dart';
 
+// diary_entry (stickers)
+import '../../features/diary_entry/data/datasources/supabase_sticker_data_source.dart';
+import '../../features/diary_entry/data/repositories/sticker_repository_impl.dart';
+import '../../features/diary_entry/domain/repositories/sticker_repository.dart';
+import '../../features/diary_entry/presentation/bloc/sticker_picker/sticker_picker_bloc.dart';
+
 
 import '../../features/theme/domain/repositories/theme_repository.dart';
 import '../../features/theme/domain/usecases/delete_custom_theme.dart';
@@ -97,6 +103,25 @@ Future<void> configureDependencies() async {
     ),
   );
 
+  // --- diary_entry (stickers) ---
+  // Assumes Supabase.initialize(...) has already run in main(). The
+  // SupabaseClient singleton is registered once here and reused by the
+  // backgrounds feature below — registration order doesn't matter for
+  // lazy singletons (resolved on first use), but it's registered here
+  // since stickers are the first section that needs it.
+  getIt.registerLazySingleton<SupabaseClient>(() => Supabase.instance.client);
+  getIt.registerLazySingleton(
+    () => SupabaseStickerDataSource(getIt<SupabaseClient>()),
+  );
+  getIt.registerLazySingleton<StickerRepository>(
+    () => StickerRepositoryImpl(getIt<SupabaseStickerDataSource>()),
+  );
+  // Factory (not singleton) — a fresh StickerPickerBloc is created each
+  // time the picker sheet opens, mirroring BackgroundPickerBloc.
+  getIt.registerFactory(
+    () => StickerPickerBloc(stickerRepository: getIt<StickerRepository>()),
+  );
+
   // --- home ---
   getIt.registerFactory(
     () => DiaryListBloc(getAllDiaryEntries: getIt<GetAllDiaryEntries>()),
@@ -168,8 +193,7 @@ Future<void> configureDependencies() async {
   );
 
   // --- backgrounds ---
-  // Assumes Supabase.initialize(...) has already run in main().
-  getIt.registerLazySingleton<SupabaseClient>(() => Supabase.instance.client);
+  // SupabaseClient is registered above (diary_entry stickers section).
   getIt.registerLazySingleton(
     () => SupabaseStorageAssetService(getIt<SupabaseClient>()),
   );

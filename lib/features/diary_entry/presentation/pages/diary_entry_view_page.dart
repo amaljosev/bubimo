@@ -1,6 +1,7 @@
 // lib/features/diary_entry/presentation/pages/diary_entry_view_page.dart
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -19,6 +20,7 @@ import '../../domain/usecases/update_diary_entry.dart';
 import '../widgets/confirm_delete_dialog.dart';
 import '../widgets/overlay_image_view.dart';
 import '../widgets/resizable_image_embed_builder.dart';
+import '../widgets/sticker_overlay_view.dart';
 
 /// Displays a single diary entry in full, with favorite toggle, edit,
 /// and delete actions.
@@ -173,6 +175,33 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     );
   }
 
+  /// Resolves which background image to actually render, per the same
+  /// precedence rule used on the form page: gallery > preset-local >
+  /// preset-remote (cached). Mirrors
+  /// `_DiaryFormViewState._resolveBackgroundImage` — kept in sync with
+  /// that method since both read the same three fields off
+  /// [DiaryEntry].
+  ///
+  /// This screen previously never called anything like this at all —
+  /// `_buildBody()` built the title/date/editor but never read
+  /// `bgImagePath` / `bgLocalPath` / `bgGalleryImagePath` off the
+  /// entry, so a background chosen in the form was saved correctly but
+  /// simply had nowhere to render once you came back to view the
+  /// entry. That's the "background not loading" bug — it wasn't a
+  /// loading failure, it was never wired up on this screen.
+  ImageProvider? _resolveBackgroundImage(DiaryEntry entry) {
+    if (entry.bgGalleryImagePath != null) {
+      return FileImage(File(entry.bgGalleryImagePath!));
+    }
+    if (entry.bgImagePath != null) {
+      return AssetImage(entry.bgImagePath!);
+    }
+    if (entry.bgLocalPath != null) {
+      return FileImage(File(entry.bgLocalPath!));
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -181,7 +210,10 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
         if (!didPop) context.pop(_hasChanges);
       },
       child: Scaffold(
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           title: const Text('Diary Entry'),
           actions: _entry == null
               ? null
@@ -229,48 +261,74 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     }
 
     final entry = _entry!;
+    final backgroundImage = _resolveBackgroundImage(entry);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (entry.mood != null)
-          Text(entry.mood!.emoji, style: const TextStyle(fontSize: 32)),
-        const SizedBox(height: 8),
-        Text(
-          entry.title?.isNotEmpty == true ? entry.title! : 'Untitled',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          AppDateUtils.toDisplayString(entry.date),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        if (_viewController != null)
-          // A plain Stack (not OverlayLayer) is enough here since
-          // view mode — overlay images just render at their saved
-          // position/scale/rotation, matching the editor's coordinate
-          // space exactly since both use the same OverlayImage data.
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              quill.QuillEditor.basic(
-                controller: _viewController!,
-                config: quill.QuillEditorConfig(
-                  embedBuilders: [
-                    ResizableImageEmbedBuilder(),
-                    ...FlutterQuillEmbeds.editorBuilders(),
-                  ],
+    return Container(
+      // Same lightened overlay treatment as the form page, so text and
+      // embeds stay legible over busy background photos while the
+      // background itself is still clearly visible.
+      decoration: backgroundImage != null
+          ? BoxDecoration(
+              image: DecorationImage(
+                image: backgroundImage,
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Colors.white.withValues(alpha: 0.85),
+                  BlendMode.lighten,
                 ),
               ),
-              for (final image in entry.overlayImages)
-                OverlayImageView(
-                  key: ValueKey(image.id),
-                  image: image,
-                ),
-            ],
-          ),
-      ],
+            )
+          : null,
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            if (entry.mood != null)
+              Text(entry.mood!.emoji, style: const TextStyle(fontSize: 32)),
+            const SizedBox(height: 8),
+            Text(
+              entry.title?.isNotEmpty == true ? entry.title! : 'Untitled',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppDateUtils.toDisplayString(entry.date),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            if (_viewController != null)
+              // A plain Stack (not OverlayLayer) is enough here since
+              // view mode — overlay images and stickers just render at
+              // their saved position/scale/rotation, matching the
+              // editor's coordinate space exactly since both use the
+              // same data as the form page.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  quill.QuillEditor.basic(
+                    controller: _viewController!,
+                    config: quill.QuillEditorConfig(
+                      embedBuilders: [
+                        ResizableImageEmbedBuilder(),
+                        ...FlutterQuillEmbeds.editorBuilders(),
+                      ],
+                    ),
+                  ),
+                  for (final image in entry.overlayImages)
+                    OverlayImageView(
+                      key: ValueKey('image_${image.id}'),
+                      image: image,
+                    ),
+                  for (final sticker in entry.stickers)
+                    StickerOverlayView(
+                      key: ValueKey('sticker_${sticker.id}'),
+                      sticker: sticker,
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

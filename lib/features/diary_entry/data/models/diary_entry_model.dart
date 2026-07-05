@@ -7,14 +7,17 @@ import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/diary_entry.dart';
 import '../../domain/entities/mood.dart';
 import '../../domain/entities/overlay_image.dart';
+import '../../domain/entities/sticker.dart';
 
 /// Data-layer representation of [DiaryEntry], responsible for converting
 /// between the domain entity and the raw `Map<String, Object?>` sqflite
 /// reads/writes.
 ///
 /// Covers every column in the final `diary_entries` schema. List fields
-/// ([stickers], [images], [tags]) are stored as JSON-encoded TEXT since
-/// SQLite has no native array type.
+/// ([images], [tags]) are stored as JSON-encoded TEXT since SQLite has
+/// no native array type; [overlayImages] and [stickers] are stored the
+/// same way but hold full transform records (id/x/y/scale/rotation),
+/// not just plain string paths.
 class DiaryEntryModel extends DiaryEntry {
   const DiaryEntryModel({
     required super.id,
@@ -28,10 +31,10 @@ class DiaryEntryModel extends DiaryEntry {
     super.bgImagePath,
     super.bgGalleryImagePath,
     super.bgLocalPath,
-    super.stickers,
     super.images,
     super.tags,
     super.overlayImages,
+    super.stickers,
     super.wordCount,
     super.fontFamily,
     super.isFavorite,
@@ -57,10 +60,10 @@ class DiaryEntryModel extends DiaryEntry {
       bgImagePath: entry.bgImagePath,
       bgGalleryImagePath: entry.bgGalleryImagePath,
       bgLocalPath: entry.bgLocalPath,
-      stickers: entry.stickers,
       images: entry.images,
       tags: entry.tags,
       overlayImages: entry.overlayImages,
+      stickers: entry.stickers,
       wordCount: entry.wordCount,
       fontFamily: entry.fontFamily,
       isFavorite: entry.isFavorite,
@@ -90,15 +93,15 @@ class DiaryEntryModel extends DiaryEntry {
       bgGalleryImagePath:
           map[DiaryEntriesTable.columnBgGalleryImagePath] as String?,
       bgLocalPath: map[DiaryEntriesTable.columnBgLocalPath] as String?,
-      stickers: _decodeStringList(
-        map[DiaryEntriesTable.columnStickers] as String?,
-      ),
       images: _decodeStringList(
         map[DiaryEntriesTable.columnImages] as String?,
       ),
       tags: _decodeStringList(map[DiaryEntriesTable.columnTags] as String?),
       overlayImages: _decodeOverlayImages(
         map[DiaryEntriesTable.columnOverlayImages] as String?,
+      ),
+      stickers: _decodeStickers(
+        map[DiaryEntriesTable.columnStickers] as String?,
       ),
       wordCount: (map[DiaryEntriesTable.columnWordCount] as int?) ?? 0,
       fontFamily: map[DiaryEntriesTable.columnFontFamily] as String?,
@@ -132,7 +135,7 @@ class DiaryEntryModel extends DiaryEntry {
       DiaryEntriesTable.columnBgImagePath: bgImagePath,
       DiaryEntriesTable.columnBgGalleryImagePath: bgGalleryImagePath,
       DiaryEntriesTable.columnBgLocalPath: bgLocalPath,
-      DiaryEntriesTable.columnStickers: _encodeStringList(stickers),
+      DiaryEntriesTable.columnStickers: _encodeStickers(stickers),
       DiaryEntriesTable.columnImages: _encodeStringList(images),
       DiaryEntriesTable.columnTags: _encodeStringList(tags),
       DiaryEntriesTable.columnOverlayImages:
@@ -185,6 +188,35 @@ class DiaryEntryModel extends DiaryEntry {
         if (item is Map<String, dynamic>) {
           try {
             result.add(OverlayImage.fromJson(item));
+          } catch (_) {
+            // Skip this single malformed record.
+          }
+        }
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static String? _encodeStickers(List<Sticker> list) {
+    if (list.isEmpty) return null;
+    return jsonEncode(list.map((s) => s.toJson()).toList());
+  }
+
+  /// Malformed entries are skipped individually, same rationale as
+  /// [_decodeOverlayImages] — one corrupt sticker record shouldn't wipe
+  /// out every other sticker on the entry.
+  static List<Sticker> _decodeStickers(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final result = <Sticker>[];
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          try {
+            result.add(Sticker.fromJson(item));
           } catch (_) {
             // Skip this single malformed record.
           }

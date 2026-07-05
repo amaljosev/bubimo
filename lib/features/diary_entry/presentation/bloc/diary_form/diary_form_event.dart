@@ -72,18 +72,6 @@ final class DiaryFormFontFamilyChanged extends DiaryFormEvent {
   List<Object?> get props => [fontFamily];
 }
 
-/// Fired after a sticker is inserted into the document, so the
-/// denormalized `stickers` list stays in sync with what's actually in
-/// the content.
-final class DiaryFormStickerAdded extends DiaryFormEvent {
-  final String stickerPath;
-
-  const DiaryFormStickerAdded(this.stickerPath);
-
-  @override
-  List<Object?> get props => [stickerPath];
-}
-
 /// Fired after a gallery photo is inserted into the document, so the
 /// denormalized `images` list stays in sync with what's actually in the
 /// content.
@@ -158,6 +146,73 @@ final class DiaryFormOverlayImageSelected extends DiaryFormEvent {
   final String? id;
 
   const DiaryFormOverlayImageSelected(this.id);
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Fired once a sticker has been downloaded/cached and should be added
+/// to the canvas as a new floating overlay. [url] is the permanent
+/// Supabase source (kept for recovery); [localPath] is the freshly
+/// downloaded cache file used to render it immediately.
+final class DiaryFormStickerAdded extends DiaryFormEvent {
+  final String id;
+  final String url;
+  final String localPath;
+  final double x;
+  final double y;
+
+  const DiaryFormStickerAdded({
+    required this.id,
+    required this.url,
+    required this.localPath,
+    required this.x,
+    required this.y,
+  });
+
+  @override
+  List<Object?> get props => [id, url, localPath, x, y];
+}
+
+/// Fired continuously while dragging/pinching/rotating a sticker, and
+/// once more on gesture end — matches `TransformableItem`'s `onUpdate`
+/// callback shape exactly, same as
+/// [DiaryFormOverlayImageTransformed].
+final class DiaryFormStickerTransformed extends DiaryFormEvent {
+  final String id;
+  final double x;
+  final double y;
+  final double scale;
+  final double rotation;
+
+  const DiaryFormStickerTransformed({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.scale,
+    required this.rotation,
+  });
+
+  @override
+  List<Object?> get props => [id, x, y, scale, rotation];
+}
+
+/// Fired when a sticker's delete handle is tapped.
+final class DiaryFormStickerRemoved extends DiaryFormEvent {
+  final String id;
+
+  const DiaryFormStickerRemoved(this.id);
+
+  @override
+  List<Object?> get props => [id];
+}
+
+/// Fired when a sticker is tapped to select it, or when selection
+/// should be cleared (pass `null`).
+final class DiaryFormStickerSelected extends DiaryFormEvent {
+  final String? id;
+
+  const DiaryFormStickerSelected(this.id);
 
   @override
   List<Object?> get props => [id];

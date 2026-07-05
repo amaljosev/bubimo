@@ -5,45 +5,74 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/overlay_image.dart';
+import '../../domain/entities/sticker.dart';
 import 'editable_overlay_image.dart';
+import 'editable_sticker_overlay.dart';
 
-/// Hosts every [OverlayImage] for the diary form as absolutely
-/// positioned, draggable/rotatable/resizable children stacked on top
-/// of [child] (the Quill editor + its surrounding scroll content).
+/// Hosts every [OverlayImage] and [Sticker] for the diary form as
+/// absolutely positioned, draggable/rotatable/resizable children
+/// stacked on top of [child] (the Quill editor + its surrounding
+/// scroll content).
 ///
-/// This is the layer that makes overlay photos feel like stickers on a
-/// story — they float above the text and are transformed independently
-/// of it. Tapping anywhere in the layer that isn't an image deselects
-/// the currently selected one.
+/// Generalized to handle both item kinds in one layer (rather than a
+/// separate StickerLayer) since they share identical transform
+/// behavior and coordinate space — only the id namespace and selection
+/// need to stay distinguishable, which is handled here via
+/// [selectedImageId]/[selectedStickerId] being tracked independently
+/// (an image and a sticker could theoretically share the same
+/// generated id string, so they are never merged into one combined
+/// "selected id" concept).
+///
+/// Tapping anywhere in the layer that isn't an image or sticker
+/// deselects whichever one is currently selected.
 class OverlayLayer extends StatelessWidget {
   final Widget child;
   final List<OverlayImage> images;
+  final List<Sticker> stickers;
   final String? selectedImageId;
-  final ValueChanged<String> onSelect;
+  final String? selectedStickerId;
+
+  final ValueChanged<String> onSelectImage;
+  final ValueChanged<String> onSelectSticker;
   final VoidCallback onDeselect;
+
   final void Function({
     required String id,
     required double x,
     required double y,
     required double scale,
     required double rotation,
-  }) onTransform;
-  final ValueChanged<String> onRemove;
+  }) onImageTransform;
+  final void Function({
+    required String id,
+    required double x,
+    required double y,
+    required double scale,
+    required double rotation,
+  }) onStickerTransform;
+
+  final ValueChanged<String> onRemoveImage;
+  final ValueChanged<String> onRemoveSticker;
 
   /// Key of the widget whose [RenderBox] defines the coordinate space
-  /// and bounds overlay images are clamped/placed within — typically
-  /// the container wrapping the Quill editor.
+  /// and bounds overlay items are clamped/placed within — typically the
+  /// container wrapping the Quill editor.
   final GlobalKey boundsKey;
 
   const OverlayLayer({
     super.key,
     required this.child,
     required this.images,
+    this.stickers = const [],
     required this.selectedImageId,
-    required this.onSelect,
+    this.selectedStickerId,
+    required this.onSelectImage,
+    required this.onSelectSticker,
     required this.onDeselect,
-    required this.onTransform,
-    required this.onRemove,
+    required this.onImageTransform,
+    required this.onStickerTransform,
+    required this.onRemoveImage,
+    required this.onRemoveSticker,
     required this.boundsKey,
   });
 
@@ -53,15 +82,18 @@ class OverlayLayer extends StatelessWidget {
     return Rect.fromLTWH(0, 0, box.size.width, box.size.height);
   }
 
-  /// Finds an unoccupied spot for a newly added overlay image, starting
+  /// Finds an unoccupied spot for a newly added overlay item, starting
   /// from the center of the bounds and spiraling outward if the center
   /// is already occupied. Falls back to a fixed offset if the bounds
   /// aren't laid out yet.
   ///
-  /// Ported from the old project's `_findFreePositionForNewItem`.
+  /// Considers both existing overlay images AND stickers as occupied
+  /// space, so a newly added sticker won't stack directly on top of an
+  /// existing image and vice versa.
   static Offset findFreePosition({
     required Rect? bounds,
     required List<OverlayImage> existingImages,
+    List<Sticker> existingStickers = const [],
     required double width,
     required double height,
   }) {
@@ -75,6 +107,13 @@ class OverlayLayer extends StatelessWidget {
           img.y,
           OverlayImage.baseWidth * img.scale,
           OverlayImage.baseHeight * img.scale,
+        ),
+      for (final sticker in existingStickers)
+        Rect.fromLTWH(
+          sticker.x,
+          sticker.y,
+          Sticker.baseWidth * sticker.scale,
+          Sticker.baseHeight * sticker.scale,
         ),
     ];
 
@@ -123,7 +162,7 @@ class OverlayLayer extends StatelessWidget {
         // Base content (Quill editor etc). This is the Stack's only
         // non-positioned child, so per Stack's default sizing rules the
         // whole Stack sizes itself to match this child's natural size —
-        // the overlay images below are all Positioned and don't
+        // the overlay items below are all Positioned and don't
         // contribute to that sizing, so they float on top without
         // affecting (or collapsing) the editor's layout.
         GestureDetector(
@@ -133,11 +172,11 @@ class OverlayLayer extends StatelessWidget {
         ),
         for (final image in images)
           EditableOverlayImage(
-            key: ValueKey(image.id),
+            key: ValueKey('image_${image.id}'),
             image: image,
             isSelected: selectedImageId == image.id,
             getBounds: _getBounds,
-            onSelect: () => onSelect(image.id),
+            onSelect: () => onSelectImage(image.id),
             onUpdate: ({
               required id,
               required x,
@@ -145,14 +184,37 @@ class OverlayLayer extends StatelessWidget {
               required scale,
               required rotation,
             }) =>
-                onTransform(
+                onImageTransform(
               id: id,
               x: x,
               y: y,
               scale: scale,
               rotation: rotation,
             ),
-            onRemove: () => onRemove(image.id),
+            onRemove: () => onRemoveImage(image.id),
+          ),
+        for (final sticker in stickers)
+          EditableStickerOverlay(
+            key: ValueKey('sticker_${sticker.id}'),
+            sticker: sticker,
+            isSelected: selectedStickerId == sticker.id,
+            getBounds: _getBounds,
+            onSelect: () => onSelectSticker(sticker.id),
+            onUpdate: ({
+              required id,
+              required x,
+              required y,
+              required scale,
+              required rotation,
+            }) =>
+                onStickerTransform(
+              id: id,
+              x: x,
+              y: y,
+              scale: scale,
+              rotation: rotation,
+            ),
+            onRemove: () => onRemoveSticker(sticker.id),
           ),
       ],
     );

@@ -5,7 +5,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
-/// Custom image `EmbedBuilder` with a real drag-to-resize handle.
+import 'full_screen_image_viewer.dart';
+
+/// Custom image `EmbedBuilder` with a real drag-to-resize handle and a
+/// remove handle.
 ///
 /// `flutter_quill_extensions`' built-in [quill.EmbedBuilder] for images
 /// only exposes resizing through a desktop-only context menu (right
@@ -15,8 +18,9 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 /// for a user to resize an inline image at all. This builder replaces
 /// it with a widget that renders the image at its stored width/height
 /// (falling back to a sensible default) and exposes a bottom-right
-/// resize handle, matching the same physical drag-to-resize feel as
-/// the overlay images ([TransformableItem]) elsewhere in this feature.
+/// resize handle and a top-left remove handle, matching the same
+/// physical drag-to-resize feel as the overlay images
+/// ([TransformableItem]) elsewhere in this feature.
 ///
 /// Register this in place of the extension's image builder:
 /// ```dart
@@ -36,6 +40,36 @@ class ResizableImageEmbedBuilder extends quill.EmbedBuilder {
 
   @override
   String get key => quill.BlockEmbed.imageType;
+
+  /// Finds the current offset of the embed node whose image data
+  /// matches [imageSource], by scanning the live document rather than
+  /// trusting [controller]'s current selection.
+  ///
+  /// The previous implementation resolved the node via
+  /// `controller.selection.start`, which is the cursor position — not
+  /// necessarily this embed's position. If the selection had moved
+  /// elsewhere by the time a drag gesture finished (e.g. the user
+  /// scrolled, tapped away, or another embed took focus), that offset
+  /// pointed at unrelated content or past the end of the document, and
+  /// `quill.getEmbedNode` threw `ArgumentError: Embed node not found by
+  /// offset`. Scanning for the node by its own image data is immune to
+  /// selection changes entirely. Returns `null` if the node can no
+  /// longer be found (e.g. it was already deleted).
+  int? _findOffset(quill.QuillController controller, String imageSource) {
+    final root = controller.document.root;
+    for (final node in root.children) {
+      if (node is quill.Line) {
+        for (final leaf in node.children) {
+          if (leaf is quill.Embed &&
+              leaf.value.type == quill.BlockEmbed.imageType &&
+              leaf.value.data == imageSource) {
+            return leaf.documentOffset;
+          }
+        }
+      }
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context, quill.EmbedContext embedContext) {
@@ -60,10 +94,8 @@ class ResizableImageEmbedBuilder extends quill.EmbedBuilder {
       onResizeEnd: (width, height) {
         if (embedContext.readOnly) return;
         final controller = embedContext.controller;
-        final offset = quill.getEmbedNode(
-          controller,
-          controller.selection.start,
-        ).offset;
+        final offset = _findOffset(controller, imageSource);
+        if (offset == null) return;
         controller.formatText(
           offset,
           1,
@@ -73,16 +105,28 @@ class ResizableImageEmbedBuilder extends quill.EmbedBuilder {
           ),
         );
       },
+      onRemove: () {
+        if (embedContext.readOnly) return;
+        final controller = embedContext.controller;
+        final offset = _findOffset(controller, imageSource);
+        if (offset == null) return;
+        controller.replaceText(
+          offset,
+          1,
+          '',
+          TextSelection.collapsed(offset: offset),
+        );
+      },
     );
   }
 }
 
 /// Renders [imageSource] (local file path or network URL) at
 /// [initialWidth]x[initialHeight], with an optional bottom-right drag
-/// handle to resize it in place. Reports the final size via
-/// [onResizeEnd] once the user lifts their finger, rather than on every
-/// frame, to avoid spamming `formatText` calls into the Quill document
-/// history.
+/// handle to resize it in place and a top-left handle to remove it.
+/// Reports the final size via [onResizeEnd] once the user lifts their
+/// finger, rather than on every frame, to avoid spamming `formatText`
+/// calls into the Quill document history.
 class _ResizableImage extends StatefulWidget {
   final String imageSource;
   final double initialWidth;
@@ -91,6 +135,7 @@ class _ResizableImage extends StatefulWidget {
   final double maxSize;
   final bool readOnly;
   final void Function(double width, double height) onResizeEnd;
+  final VoidCallback onRemove;
 
   const _ResizableImage({
     super.key,
@@ -101,6 +146,7 @@ class _ResizableImage extends StatefulWidget {
     required this.maxSize,
     required this.readOnly,
     required this.onResizeEnd,
+    required this.onRemove,
   });
 
   @override
@@ -113,8 +159,9 @@ class _ResizableImageState extends State<_ResizableImage> {
   late double _aspectRatio;
 
   bool _isResizing = false;
-  Offset? _dragStartLocal;
+  Offset? _dragStartGlobal;
   double _widthAtDragStart = 0;
+  int? _activePointer;
 
   @override
   void initState() {
@@ -134,17 +181,29 @@ class _ResizableImageState extends State<_ResizableImage> {
     return FileImage(File(source));
   }
 
-  void _onDragStart(DragStartDetails details) {
+  // Raw pointer handling instead of a pan `GestureDetector`.
+  //
+  // The handle sits inside a Quill embed, which is itself inside a
+  // scrollable editor (and, on the form page, inside a
+  // `SingleChildScrollView` on top of that). A pan `GestureDetector`
+  // has to win the gesture arena against those ancestor scroll/drag
+  // recognizers before it receives any events — and it was silently
+  // losing, which is why dragging the handle appeared to do nothing.
+  // `Listener` receives every raw pointer event unconditionally, with
+  // no arena negotiation, so the handle is guaranteed first access to
+  // the touch that started on it.
+  void _onPointerDown(PointerDownEvent event) {
     setState(() {
       _isResizing = true;
-      _dragStartLocal = details.localPosition;
+      _activePointer = event.pointer;
+      _dragStartGlobal = event.position;
       _widthAtDragStart = _width;
     });
   }
 
-  void _onDragUpdate(DragUpdateDetails details) {
-    if (_dragStartLocal == null) return;
-    final delta = details.localPosition - _dragStartLocal!;
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_activePointer != event.pointer || _dragStartGlobal == null) return;
+    final delta = event.position - _dragStartGlobal!;
 
     // Drive resize off horizontal drag distance, keep aspect ratio
     // locked — predictable single-axis resizing rather than free-form
@@ -159,9 +218,46 @@ class _ResizableImageState extends State<_ResizableImage> {
     });
   }
 
-  void _onDragEnd(DragEndDetails details) {
-    setState(() => _isResizing = false);
+  void _onPointerUp(PointerUpEvent event) {
+    if (_activePointer != event.pointer) return;
+    setState(() {
+      _isResizing = false;
+      _activePointer = null;
+      _dragStartGlobal = null;
+    });
     widget.onResizeEnd(_width, _height);
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (_activePointer != event.pointer) return;
+    setState(() {
+      _isResizing = false;
+      _activePointer = null;
+      _dragStartGlobal = null;
+    });
+  }
+
+  Future<void> _confirmRemove() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove image?'),
+        content: const Text('This will remove the image from your entry.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      widget.onRemove();
+    }
   }
 
   @override
@@ -185,11 +281,27 @@ class _ResizableImageState extends State<_ResizableImage> {
     );
 
     if (widget.readOnly) {
-      // No resize handle in read-only (view) mode — the saved size is
-      // final once the entry is no longer being edited.
+      // View mode: no resize/remove handles (the saved entry is final
+      // once it's no longer being edited) — instead, tapping the image
+      // opens it full-screen via `FullScreenImageViewer`, matching how
+      // overlay/sticker images and gallery photos elsewhere in the app
+      // are viewed. The `Hero` tag is derived from `imageSource` itself
+      // (unique per embed), so the fly-in animation targets exactly
+      // this image.
+      final heroTag = 'inline_image_${widget.imageSource}';
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: image,
+        child: GestureDetector(
+          onTap: () => FullScreenImageViewer.show(
+            context,
+            imagePath: widget.imageSource,
+            heroTag: heroTag,
+          ),
+          child: Hero(
+            tag: heroTag,
+            child: image,
+          ),
+        ),
       );
     }
 
@@ -216,16 +328,52 @@ class _ResizableImageState extends State<_ResizableImage> {
                   ),
                 ),
               ),
+            // Remove handle — top-left, mirrors the resize handle's
+            // bottom-right placement so the two never overlap.
             Positioned(
-              right: -6,
-              bottom: -6,
+              left: -6,
+              top: -6,
               child: GestureDetector(
-                onPanStart: _onDragStart,
-                onPanUpdate: _onDragUpdate,
-                onPanEnd: _onDragEnd,
+                onTap: _confirmRemove,
                 child: Container(
                   width: 28,
                   height: 28,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.error,
+                    shape: BoxShape.circle,
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            // Resize handle — bottom-right. `Listener` (not
+            // `GestureDetector`) so the drag is guaranteed to reach
+            // this widget instead of being claimed by an ancestor
+            // scroll view or the editor's own gesture handling.
+            Positioned(
+              right: -6,
+              bottom: -6,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerUp,
+                onPointerCancel: _onPointerCancel,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     shape: BoxShape.circle,

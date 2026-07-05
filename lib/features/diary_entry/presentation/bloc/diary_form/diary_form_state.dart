@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../domain/entities/mood.dart';
 import '../../../domain/entities/overlay_image.dart';
+import '../../../domain/entities/sticker.dart';
 
 enum DiaryFormStatus {
   /// Blank create form, or existing entry not loaded yet.
@@ -43,11 +44,10 @@ class DiaryFormState extends Equatable {
   final Mood? mood;
   final String? fontFamily;
 
-  /// Denormalized cache of sticker/image asset paths inserted into
-  /// [content] via the rich editor's pickers. Kept in sync by
-  /// [DiaryFormStickerAdded]/[DiaryFormImageAdded] rather than
-  /// re-parsed from the Delta JSON on every change.
-  final List<String> stickers;
+  /// Denormalized cache of gallery photo asset paths inserted into
+  /// [content] via the rich editor's image picker. Kept in sync by
+  /// [DiaryFormImageAdded] rather than re-parsed from the Delta JSON on
+  /// every change.
   final List<String> images;
 
   /// Free-floating overlay photos layered on top of the Quill editor —
@@ -55,9 +55,23 @@ class DiaryFormState extends Equatable {
   /// [DiaryEntry.overlayImages] for the full rationale.
   final List<OverlayImage> overlayImages;
 
+  /// Free-floating stickers layered on top of the Quill editor, sourced
+  /// from the shared Supabase sticker library. Behaviorally identical
+  /// to [overlayImages] (same transform/selection mechanics via
+  /// [OverlayLayer]) but tracked separately since stickers carry a
+  /// [Sticker.url] recovery source that gallery overlay photos don't
+  /// have.
+  final List<Sticker> stickers;
+
   /// Id of the overlay image currently selected (showing its
   /// delete/resize handles), or null if none is selected.
   final String? selectedOverlayImageId;
+
+  /// Id of the sticker currently selected, or null if none is selected.
+  /// Tracked independently from [selectedOverlayImageId] — an image and
+  /// a sticker are never considered "the same selection" even if their
+  /// generated ids happened to collide.
+  final String? selectedStickerId;
 
   /// Background fields — precedence when rendering is gallery >
   /// preset-local > preset-remote (cached) > color. Only one is
@@ -77,10 +91,11 @@ class DiaryFormState extends Equatable {
     required this.date,
     this.mood,
     this.fontFamily,
-    this.stickers = const [],
     this.images = const [],
     this.overlayImages = const [],
+    this.stickers = const [],
     this.selectedOverlayImageId,
+    this.selectedStickerId,
     this.bgImagePath,
     this.bgGalleryImagePath,
     this.bgLocalPath,
@@ -106,11 +121,13 @@ class DiaryFormState extends Equatable {
     Mood? mood,
     bool clearMood = false,
     String? fontFamily,
-    List<String>? stickers,
     List<String>? images,
     List<OverlayImage>? overlayImages,
+    List<Sticker>? stickers,
     String? selectedOverlayImageId,
     bool clearSelectedOverlayImage = false,
+    String? selectedStickerId,
+    bool clearSelectedSticker = false,
     String? bgImagePath,
     String? bgGalleryImagePath,
     String? bgLocalPath,
@@ -125,12 +142,15 @@ class DiaryFormState extends Equatable {
       date: date ?? this.date,
       mood: clearMood ? null : (mood ?? this.mood),
       fontFamily: fontFamily ?? this.fontFamily,
-      stickers: stickers ?? this.stickers,
       images: images ?? this.images,
       overlayImages: overlayImages ?? this.overlayImages,
+      stickers: stickers ?? this.stickers,
       selectedOverlayImageId: clearSelectedOverlayImage
           ? null
           : (selectedOverlayImageId ?? this.selectedOverlayImageId),
+      selectedStickerId: clearSelectedSticker
+          ? null
+          : (selectedStickerId ?? this.selectedStickerId),
       bgImagePath:
           clearBackgrounds ? bgImagePath : (bgImagePath ?? this.bgImagePath),
       bgGalleryImagePath: clearBackgrounds
@@ -151,10 +171,11 @@ class DiaryFormState extends Equatable {
         date,
         mood,
         fontFamily,
-        stickers,
         images,
         overlayImages,
+        stickers,
         selectedOverlayImageId,
+        selectedStickerId,
         bgImagePath,
         bgGalleryImagePath,
         bgLocalPath,

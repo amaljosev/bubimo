@@ -8,6 +8,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import '../../../../../core/utils/id_generator.dart';
 import '../../../domain/entities/diary_entry.dart';
 import '../../../domain/entities/overlay_image.dart';
+import '../../../domain/entities/sticker.dart';
 import '../../../domain/usecases/create_diary_entry.dart';
 import '../../../domain/usecases/get_diary_entry_by_id.dart';
 import '../../../domain/usecases/update_diary_entry.dart';
@@ -26,9 +27,17 @@ import 'diary_form_state.dart';
 /// [_countWords] parse that Delta JSON into plain text before deriving
 /// the `preview`/`wordCount` fields stored on the entity.
 ///
-/// [DiaryFormState.stickers]/[DiaryFormState.images] are denormalized
-/// caches kept in sync by the picker widgets as items are inserted into
-/// the document — this bloc doesn't re-derive them from the Delta JSON.
+/// [DiaryFormState.images] is a denormalized cache kept in sync by the
+/// picker widget as photos are inserted into the document — this bloc
+/// doesn't re-derive it from the Delta JSON.
+///
+/// [DiaryFormState.stickers] and [DiaryFormState.overlayImages] are both
+/// free-floating canvas items with their own position/scale/rotation —
+/// this bloc doesn't download stickers itself (that's
+/// `StickerPickerBloc`'s job); it only receives the already-downloaded
+/// result via [DiaryFormStickerAdded] and places it on the canvas,
+/// mirroring exactly how [DiaryFormOverlayImageAdded] places a gallery
+/// overlay photo.
 ///
 /// Background fields (`bgImagePath`/`bgGalleryImagePath`/`bgLocalPath`)
 /// are set as a group by [DiaryFormBackgroundChanged] — the background
@@ -55,12 +64,15 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     on<DiaryFormDateChanged>(_onDateChanged);
     on<DiaryFormMoodChanged>(_onMoodChanged);
     on<DiaryFormFontFamilyChanged>(_onFontFamilyChanged);
-    on<DiaryFormStickerAdded>(_onStickerAdded);
     on<DiaryFormImageAdded>(_onImageAdded);
     on<DiaryFormOverlayImageAdded>(_onOverlayImageAdded);
     on<DiaryFormOverlayImageTransformed>(_onOverlayImageTransformed);
     on<DiaryFormOverlayImageRemoved>(_onOverlayImageRemoved);
     on<DiaryFormOverlayImageSelected>(_onOverlayImageSelected);
+    on<DiaryFormStickerAdded>(_onStickerAdded);
+    on<DiaryFormStickerTransformed>(_onStickerTransformed);
+    on<DiaryFormStickerRemoved>(_onStickerRemoved);
+    on<DiaryFormStickerSelected>(_onStickerSelected);
     on<DiaryFormBackgroundChanged>(_onBackgroundChanged);
     on<DiaryFormSubmitted>(_onSubmitted);
   }
@@ -96,9 +108,9 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             date: entry.date,
             mood: entry.mood,
             fontFamily: entry.fontFamily,
-            stickers: entry.stickers,
             images: entry.images,
             overlayImages: entry.overlayImages,
+            stickers: entry.stickers,
             bgImagePath: entry.bgImagePath,
             bgGalleryImagePath: entry.bgGalleryImagePath,
             bgLocalPath: entry.bgLocalPath,
@@ -143,13 +155,6 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     emit(state.copyWith(fontFamily: event.fontFamily));
   }
 
-  void _onStickerAdded(
-    DiaryFormStickerAdded event,
-    Emitter<DiaryFormState> emit,
-  ) {
-    emit(state.copyWith(stickers: [...state.stickers, event.stickerPath]));
-  }
-
   void _onImageAdded(
     DiaryFormImageAdded event,
     Emitter<DiaryFormState> emit,
@@ -171,6 +176,7 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
       state.copyWith(
         overlayImages: [...state.overlayImages, newImage],
         selectedOverlayImageId: event.id,
+        clearSelectedSticker: true,
       ),
     );
   }
@@ -217,6 +223,76 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
       state.copyWith(
         selectedOverlayImageId: event.id,
         clearSelectedOverlayImage: event.id == null,
+        // Selecting an overlay image always clears any sticker
+        // selection — only one canvas item is ever "selected" (showing
+        // its handles) at a time.
+        clearSelectedSticker: event.id != null,
+      ),
+    );
+  }
+
+  void _onStickerAdded(
+    DiaryFormStickerAdded event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final newSticker = Sticker(
+      id: event.id,
+      url: event.url,
+      localPath: event.localPath,
+      x: event.x,
+      y: event.y,
+    );
+    emit(
+      state.copyWith(
+        stickers: [...state.stickers, newSticker],
+        selectedStickerId: event.id,
+        clearSelectedOverlayImage: true,
+      ),
+    );
+  }
+
+  void _onStickerTransformed(
+    DiaryFormStickerTransformed event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final updated = state.stickers
+        .map(
+          (s) => s.id == event.id
+              ? s.copyWith(
+                  x: event.x,
+                  y: event.y,
+                  scale: event.scale,
+                  rotation: event.rotation,
+                )
+              : s,
+        )
+        .toList();
+    emit(state.copyWith(stickers: updated));
+  }
+
+  void _onStickerRemoved(
+    DiaryFormStickerRemoved event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    final updated = state.stickers.where((s) => s.id != event.id).toList();
+    final clearSelection = state.selectedStickerId == event.id;
+    emit(
+      state.copyWith(
+        stickers: updated,
+        clearSelectedSticker: clearSelection,
+      ),
+    );
+  }
+
+  void _onStickerSelected(
+    DiaryFormStickerSelected event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        selectedStickerId: event.id,
+        clearSelectedSticker: event.id == null,
+        clearSelectedOverlayImage: event.id != null,
       ),
     );
   }
@@ -261,9 +337,9 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             date: state.date,
             mood: state.mood,
             fontFamily: state.fontFamily,
-            stickers: state.stickers,
             images: state.images,
             overlayImages: state.overlayImages,
+            stickers: state.stickers,
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,
@@ -278,9 +354,9 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             date: state.date,
             mood: state.mood,
             fontFamily: state.fontFamily,
-            stickers: state.stickers,
             images: state.images,
             overlayImages: state.overlayImages,
+            stickers: state.stickers,
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,

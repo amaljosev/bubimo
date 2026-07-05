@@ -4,12 +4,13 @@ import 'package:equatable/equatable.dart';
 
 import 'mood.dart';
 import 'overlay_image.dart';
+import 'sticker.dart';
 
 /// Core domain entity representing a single diary entry.
 ///
 /// This entity covers every field from the app's final database schema,
-/// including fields not yet used by any milestone (e.g. [stickers],
-/// [images], [tags]). Fields unused by a not-yet-built feature stay
+/// including fields not yet used by any milestone (e.g. [images],
+/// [tags]). Fields unused by a not-yet-built feature stay
 /// nullable/defaulted so this entity never needs another field added
 /// later — future milestones only add behavior (use cases, bloc, UI)
 /// that reads/writes fields that already exist here.
@@ -29,7 +30,9 @@ class DiaryEntry extends Equatable {
   final String? bgGalleryImagePath;
   final String? bgLocalPath;
 
-  final List<String> stickers;
+  /// Denormalized cache of gallery photo paths inserted inline into the
+  /// Quill document (see [overlayImages] for the separate free-floating
+  /// photo feature).
   final List<String> images;
   final List<String> tags;
 
@@ -39,6 +42,13 @@ class DiaryEntry extends Equatable {
   /// inserted inline as Quill embeds — the two features are additive
   /// and never share entries, so there's no collision between them.
   final List<OverlayImage> overlayImages;
+
+  /// Free-floating stickers layered on top of the Quill editor, sourced
+  /// from the shared Supabase sticker library — behaviorally identical
+  /// to [overlayImages] (same transform mechanics), but each carries a
+  /// [Sticker.url] recovery source so a missing local cache file can be
+  /// re-downloaded rather than lost.
+  final List<Sticker> stickers;
 
   final int wordCount;
   final String? fontFamily;
@@ -62,10 +72,10 @@ class DiaryEntry extends Equatable {
     this.bgImagePath,
     this.bgGalleryImagePath,
     this.bgLocalPath,
-    this.stickers = const [],
     this.images = const [],
     this.tags = const [],
     this.overlayImages = const [],
+    this.stickers = const [],
     this.wordCount = 0,
     this.fontFamily,
     this.isFavorite = false,
@@ -98,10 +108,10 @@ class DiaryEntry extends Equatable {
     String? bgImagePath,
     String? bgGalleryImagePath,
     String? bgLocalPath,
-    List<String>? stickers,
     List<String>? images,
     List<String>? tags,
     List<OverlayImage>? overlayImages,
+    List<Sticker>? stickers,
     int? wordCount,
     String? fontFamily,
     bool? isFavorite,
@@ -122,10 +132,10 @@ class DiaryEntry extends Equatable {
       bgImagePath: bgImagePath ?? this.bgImagePath,
       bgGalleryImagePath: bgGalleryImagePath ?? this.bgGalleryImagePath,
       bgLocalPath: bgLocalPath ?? this.bgLocalPath,
-      stickers: stickers ?? this.stickers,
       images: images ?? this.images,
       tags: tags ?? this.tags,
       overlayImages: overlayImages ?? this.overlayImages,
+      stickers: stickers ?? this.stickers,
       wordCount: wordCount ?? this.wordCount,
       fontFamily: fontFamily ?? this.fontFamily,
       isFavorite: isFavorite ?? this.isFavorite,
@@ -149,10 +159,10 @@ class DiaryEntry extends Equatable {
         bgImagePath,
         bgGalleryImagePath,
         bgLocalPath,
-        stickers,
         images,
         tags,
         overlayImages,
+        stickers,
         wordCount,
         fontFamily,
         isFavorite,
