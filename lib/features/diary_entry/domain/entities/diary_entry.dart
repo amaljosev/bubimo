@@ -30,6 +30,19 @@ class DiaryEntry extends Equatable {
   final String? bgGalleryImagePath;
   final String? bgLocalPath;
 
+  /// Opacity (0.0–1.0) of the tint blended over the background image so
+  /// text/embeds stay legible over busy photos. Per-entry, since
+  /// different background photos need different amounts of
+  /// dimming/lightening. Defaults to 0.85 — the fixed value every entry
+  /// rendered with before this became adjustable.
+  final double bgOverlayOpacity;
+
+  /// Which color is blended over the background image: `'white'`
+  /// (lightens, for dark/busy photos) or `'black'` (darkens, for
+  /// bright/washed-out photos). Defaults to `'white'`, matching the
+  /// original fixed behavior.
+  final String bgOverlayColor;
+
   /// Denormalized cache of gallery photo paths inserted inline into the
   /// Quill document (see [overlayImages] for the separate free-floating
   /// photo feature).
@@ -72,6 +85,8 @@ class DiaryEntry extends Equatable {
     this.bgImagePath,
     this.bgGalleryImagePath,
     this.bgLocalPath,
+    this.bgOverlayOpacity = 0.85,
+    this.bgOverlayColor = 'white',
     this.images = const [],
     this.tags = const [],
     this.overlayImages = const [],
@@ -108,6 +123,8 @@ class DiaryEntry extends Equatable {
     String? bgImagePath,
     String? bgGalleryImagePath,
     String? bgLocalPath,
+    double? bgOverlayOpacity,
+    String? bgOverlayColor,
     List<String>? images,
     List<String>? tags,
     List<OverlayImage>? overlayImages,
@@ -132,6 +149,8 @@ class DiaryEntry extends Equatable {
       bgImagePath: bgImagePath ?? this.bgImagePath,
       bgGalleryImagePath: bgGalleryImagePath ?? this.bgGalleryImagePath,
       bgLocalPath: bgLocalPath ?? this.bgLocalPath,
+      bgOverlayOpacity: bgOverlayOpacity ?? this.bgOverlayOpacity,
+      bgOverlayColor: bgOverlayColor ?? this.bgOverlayColor,
       images: images ?? this.images,
       tags: tags ?? this.tags,
       overlayImages: overlayImages ?? this.overlayImages,
@@ -159,6 +178,8 @@ class DiaryEntry extends Equatable {
         bgImagePath,
         bgGalleryImagePath,
         bgLocalPath,
+        bgOverlayOpacity,
+        bgOverlayColor,
         images,
         tags,
         overlayImages,

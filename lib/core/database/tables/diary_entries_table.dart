@@ -32,6 +32,17 @@ class DiaryEntriesTable {
   /// Quill editor. Kept separate from [columnImages], which tracks
   /// inline Quill embed paths only.
   static const String columnOverlayImages = 'overlay_images';
+
+  /// Opacity (0.0–1.0) of the tint applied over the background image so
+  /// text/embeds stay legible. Per-entry since different photos need
+  /// different amounts of dimming/lightening. Defaults to 0.85 to match
+  /// the fixed value every entry used before this column existed.
+  static const String columnBgOverlayOpacity = 'bg_overlay_opacity';
+
+  /// Which tint color is blended over the background image: `'white'`
+  /// (lightens a busy/dark photo) or `'black'` (darkens a bright one).
+  /// Defaults to `'white'`, matching the app's original fixed behavior.
+  static const String columnBgOverlayColor = 'bg_overlay_color';
   static const String columnWordCount = 'word_count';
   static const String columnFontFamily = 'font_family';
   static const String columnIsFavorite = 'is_favorite';
@@ -57,6 +68,8 @@ class DiaryEntriesTable {
       $columnImages TEXT,
       $columnTags TEXT,
       $columnOverlayImages TEXT,
+      $columnBgOverlayOpacity REAL NOT NULL DEFAULT 0.85,
+      $columnBgOverlayColor TEXT NOT NULL DEFAULT 'white',
       $columnWordCount INTEGER NOT NULL DEFAULT 0,
       $columnFontFamily TEXT,
       $columnIsFavorite INTEGER NOT NULL DEFAULT 0,
@@ -66,4 +79,18 @@ class DiaryEntriesTable {
       $columnUpdatedAt TEXT NOT NULL
     );
   ''';
+
+  /// Migration SQL for existing databases created before
+  /// [columnBgOverlayOpacity]/[columnBgOverlayColor] existed (schema
+  /// version 1). SQLite's `ALTER TABLE ... ADD COLUMN` requires a
+  /// constant default, so these match the CREATE TABLE defaults above —
+  /// existing rows get the same fixed values every entry used to render
+  /// with, so this migration doesn't change how any existing entry
+  /// looks.
+  static const List<String> addOverlayOpacityColumnsSql = [
+    'ALTER TABLE $tableName '
+        'ADD COLUMN $columnBgOverlayOpacity REAL NOT NULL DEFAULT 0.85;',
+    'ALTER TABLE $tableName '
+        "ADD COLUMN $columnBgOverlayColor TEXT NOT NULL DEFAULT 'white';",
+  ];
 }

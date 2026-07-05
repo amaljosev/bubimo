@@ -81,6 +81,15 @@ class DiaryFormState extends Equatable {
   final String? bgGalleryImagePath;
   final String? bgLocalPath;
 
+  /// Opacity (0.0–1.0) of the tint blended over the background image.
+  /// Defaults to 0.85, matching the fixed value every entry rendered
+  /// with before this became adjustable.
+  final double bgOverlayOpacity;
+
+  /// Tint color blended over the background image: `'white'` or
+  /// `'black'`. Defaults to `'white'`, matching original behavior.
+  final String bgOverlayColor;
+
   final String? errorMessage;
 
   const DiaryFormState({
@@ -99,6 +108,8 @@ class DiaryFormState extends Equatable {
     this.bgImagePath,
     this.bgGalleryImagePath,
     this.bgLocalPath,
+    this.bgOverlayOpacity = 0.50,
+    this.bgOverlayColor = 'white',
     this.errorMessage,
   });
 
@@ -132,6 +143,8 @@ class DiaryFormState extends Equatable {
     String? bgGalleryImagePath,
     String? bgLocalPath,
     bool clearBackgrounds = false,
+    double? bgOverlayOpacity,
+    String? bgOverlayColor,
     String? errorMessage,
   }) {
     return DiaryFormState(
@@ -158,6 +171,8 @@ class DiaryFormState extends Equatable {
           : (bgGalleryImagePath ?? this.bgGalleryImagePath),
       bgLocalPath:
           clearBackgrounds ? bgLocalPath : (bgLocalPath ?? this.bgLocalPath),
+      bgOverlayOpacity: bgOverlayOpacity ?? this.bgOverlayOpacity,
+      bgOverlayColor: bgOverlayColor ?? this.bgOverlayColor,
       errorMessage: errorMessage,
     );
   }
@@ -179,6 +194,8 @@ class DiaryFormState extends Equatable {
         bgImagePath,
         bgGalleryImagePath,
         bgLocalPath,
+        bgOverlayOpacity,
+        bgOverlayColor,
         errorMessage,
       ];
 }

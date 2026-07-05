@@ -74,6 +74,7 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     on<DiaryFormStickerRemoved>(_onStickerRemoved);
     on<DiaryFormStickerSelected>(_onStickerSelected);
     on<DiaryFormBackgroundChanged>(_onBackgroundChanged);
+    on<DiaryFormOverlayOpacityChanged>(_onOverlayOpacityChanged);
     on<DiaryFormSubmitted>(_onSubmitted);
   }
 
@@ -114,6 +115,8 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             bgImagePath: entry.bgImagePath,
             bgGalleryImagePath: entry.bgGalleryImagePath,
             bgLocalPath: entry.bgLocalPath,
+            bgOverlayOpacity: entry.bgOverlayOpacity,
+            bgOverlayColor: entry.bgOverlayColor,
           ),
         );
       },
@@ -314,6 +317,18 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
     );
   }
 
+  void _onOverlayOpacityChanged(
+    DiaryFormOverlayOpacityChanged event,
+    Emitter<DiaryFormState> emit,
+  ) {
+    emit(
+      state.copyWith(
+        bgOverlayOpacity: event.opacity,
+        bgOverlayColor: event.color,
+      ),
+    );
+  }
+
   Future<void> _onSubmitted(
     DiaryFormSubmitted event,
     Emitter<DiaryFormState> emit,
@@ -343,6 +358,8 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,
+            bgOverlayOpacity: state.bgOverlayOpacity,
+            bgOverlayColor: state.bgOverlayColor,
             preview: preview,
             wordCount: wordCount,
             updatedAt: now,
@@ -360,6 +377,8 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             bgImagePath: state.bgImagePath,
             bgGalleryImagePath: state.bgGalleryImagePath,
             bgLocalPath: state.bgLocalPath,
+            bgOverlayOpacity: state.bgOverlayOpacity,
+            bgOverlayColor: state.bgOverlayColor,
             preview: preview,
             wordCount: wordCount,
             createdAt: now,

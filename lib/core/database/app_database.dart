@@ -18,7 +18,7 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 2;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -57,7 +57,16 @@ class AppDatabase {
   /// blueprint), this should rarely need real migration logic — but the
   /// hook is here so version bumps don't require restructuring later.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // No migrations yet — schema was designed complete from version 1.
+    if (oldVersion < 2) {
+      // Adds per-entry background overlay opacity/color, introduced
+      // alongside the opacity settings icon on the entry form. Existing
+      // rows get the same fixed values (0.85 / white) every entry
+      // rendered with before this column existed, so upgrading doesn't
+      // change how any existing entry looks.
+      for (final sql in DiaryEntriesTable.addOverlayOpacityColumnsSql) {
+        await db.execute(sql);
+      }
+    }
   }
 
   /// Closes the database. Rarely needed in app code (GetIt keeps this

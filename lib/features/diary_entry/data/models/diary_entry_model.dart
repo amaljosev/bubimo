@@ -31,6 +31,8 @@ class DiaryEntryModel extends DiaryEntry {
     super.bgImagePath,
     super.bgGalleryImagePath,
     super.bgLocalPath,
+    super.bgOverlayOpacity,
+    super.bgOverlayColor,
     super.images,
     super.tags,
     super.overlayImages,
@@ -60,6 +62,8 @@ class DiaryEntryModel extends DiaryEntry {
       bgImagePath: entry.bgImagePath,
       bgGalleryImagePath: entry.bgGalleryImagePath,
       bgLocalPath: entry.bgLocalPath,
+      bgOverlayOpacity: entry.bgOverlayOpacity,
+      bgOverlayColor: entry.bgOverlayColor,
       images: entry.images,
       tags: entry.tags,
       overlayImages: entry.overlayImages,
@@ -93,6 +97,12 @@ class DiaryEntryModel extends DiaryEntry {
       bgGalleryImagePath:
           map[DiaryEntriesTable.columnBgGalleryImagePath] as String?,
       bgLocalPath: map[DiaryEntriesTable.columnBgLocalPath] as String?,
+      bgOverlayOpacity: (map[DiaryEntriesTable.columnBgOverlayOpacity]
+              as num?)
+          ?.toDouble() ??
+          0.85,
+      bgOverlayColor:
+          map[DiaryEntriesTable.columnBgOverlayColor] as String? ?? 'white',
       images: _decodeStringList(
         map[DiaryEntriesTable.columnImages] as String?,
       ),
@@ -135,6 +145,8 @@ class DiaryEntryModel extends DiaryEntry {
       DiaryEntriesTable.columnBgImagePath: bgImagePath,
       DiaryEntriesTable.columnBgGalleryImagePath: bgGalleryImagePath,
       DiaryEntriesTable.columnBgLocalPath: bgLocalPath,
+      DiaryEntriesTable.columnBgOverlayOpacity: bgOverlayOpacity,
+      DiaryEntriesTable.columnBgOverlayColor: bgOverlayColor,
       DiaryEntriesTable.columnStickers: _encodeStickers(stickers),
       DiaryEntriesTable.columnImages: _encodeStringList(images),
       DiaryEntriesTable.columnTags: _encodeStringList(tags),

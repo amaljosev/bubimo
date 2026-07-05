@@ -202,6 +202,14 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     return null;
   }
 
+  /// Resolves the tint color to blend over the background image from
+  /// the entry's stored color name ('white' or 'black'), mirroring
+  /// `_DiaryFormViewState._resolveOverlayTintColor` — kept in sync with
+  /// that method since both read `entry.bgOverlayColor`.
+  Color _resolveOverlayTintColor(DiaryEntry entry) {
+    return entry.bgOverlayColor == 'black' ? Colors.black : Colors.white;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -273,8 +281,14 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
                 image: backgroundImage,
                 fit: BoxFit.cover,
                 colorFilter: ColorFilter.mode(
-                  Colors.white.withValues(alpha: 0.85),
-                  BlendMode.lighten,
+                  _resolveOverlayTintColor(entry)
+                      .withValues(alpha: entry.bgOverlayOpacity),
+                  // Same rationale as the form page: 'lighten' is a
+                  // no-op for a black tint, so darken/lighten must
+                  // match the chosen color.
+                  entry.bgOverlayColor == 'black'
+                      ? BlendMode.darken
+                      : BlendMode.lighten,
                 ),
               ),
             )

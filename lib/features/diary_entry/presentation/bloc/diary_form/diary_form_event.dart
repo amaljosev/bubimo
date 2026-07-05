@@ -239,6 +239,24 @@ final class DiaryFormBackgroundChanged extends DiaryFormEvent {
   List<Object?> get props => [bgImagePath, bgGalleryImagePath, bgLocalPath];
 }
 
+/// Fired when the background overlay tint's opacity and/or color is
+/// adjusted via the form's settings icon. Both fields are always sent
+/// together since the opacity settings sheet exposes them as one
+/// control group, unlike [DiaryFormBackgroundChanged]'s
+/// exactly-one-of-three shape.
+final class DiaryFormOverlayOpacityChanged extends DiaryFormEvent {
+  final double opacity;
+  final String color;
+
+  const DiaryFormOverlayOpacityChanged({
+    required this.opacity,
+    required this.color,
+  });
+
+  @override
+  List<Object?> get props => [opacity, color];
+}
+
 /// Fired when the user taps Save. The bloc itself guards against
 /// duplicate submissions (see [DiaryFormBloc]) so rapid repeated taps of
 /// this event are safe.
