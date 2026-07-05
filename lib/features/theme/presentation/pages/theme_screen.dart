@@ -2,10 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../../core/di/injection.dart';
-import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
 import '../../domain/entities/app_theme_data.dart';
@@ -16,15 +13,18 @@ import '../cubit/app_theme_cubit.dart';
 
 /// Lists default and custom themes; tapping one applies it app-wide
 /// immediately via [AppThemeCubit].
+///
+/// Its [ThemeListBloc] is provided by [MainShell] (created once, kept
+/// alive across tab switches) — this widget only consumes it, it does
+/// not create it. The "Custom Theme" action lives in the shell's shared
+/// AppBar (previously this screen's own FAB), and calls back into
+/// [ThemeListBloc] to refresh after a successful create.
 class ThemeScreen extends StatelessWidget {
   const ThemeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<ThemeListBloc>()..add(const LoadThemes()),
-      child: const _ThemeScreenView(),
-    );
+    return const _ThemeScreenView();
   }
 }
 
@@ -36,10 +36,8 @@ class _ThemeScreenView extends StatefulWidget {
 }
 
 class _ThemeScreenViewState extends State<_ThemeScreenView> {
-  // Guards against a rapid double-tap applying two theme changes at
-  // once, and against opening two Custom Theme screens from fast taps.
+  // Guards against a rapid double-tap applying two theme changes at once.
   bool _isApplyingTheme = false;
-  bool _isNavigatingToCustom = false;
 
   Future<void> _applyTheme(BuildContext context, String themeId) async {
     if (_isApplyingTheme) return;
@@ -59,66 +57,46 @@ class _ThemeScreenViewState extends State<_ThemeScreenView> {
     );
   }
 
-  Future<void> _openCustomThemeScreen(BuildContext context) async {
-    if (_isNavigatingToCustom) return;
-    _isNavigatingToCustom = true;
-
-    final result = await context.push<bool>(AppRoutes.customThemeScreen);
-
-    _isNavigatingToCustom = false;
-
-    if (result == true && context.mounted) {
-      context.read<ThemeListBloc>().add(const LoadThemes());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Themes')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCustomThemeScreen(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Custom Theme'),
-      ),
-      body: BlocBuilder<ThemeListBloc, ThemeListState>(
-        builder: (context, state) {
-          switch (state.status) {
-            case ThemeListStatus.initial:
-            case ThemeListStatus.loading:
-              return const LoadingScreen();
+    // No Scaffold/AppBar/FAB here — MainShell provides the AppBar
+    // (including the "Custom Theme" action, previously this screen's FAB).
+    return BlocBuilder<ThemeListBloc, ThemeListState>(
+      builder: (context, state) {
+        switch (state.status) {
+          case ThemeListStatus.initial:
+          case ThemeListStatus.loading:
+            return const LoadingScreen();
 
-            case ThemeListStatus.failure:
-              return ErrorScreen(
-                message: state.errorMessage ?? 'Something went wrong.',
-                onRetry: () =>
-                    context.read<ThemeListBloc>().add(const LoadThemes()),
-              );
+          case ThemeListStatus.failure:
+            return ErrorScreen(
+              message: state.errorMessage ?? 'Something went wrong.',
+              onRetry: () =>
+                  context.read<ThemeListBloc>().add(const LoadThemes()),
+            );
 
-            case ThemeListStatus.loaded:
-              return GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: state.themes.length,
-                itemBuilder: (context, index) {
-                  final theme = state.themes[index];
-                  final isSelected = theme.id == state.selectedThemeId;
-                  return _ThemeCard(
-                    theme: theme,
-                    isSelected: isSelected,
-                    onTap: () => _applyTheme(context, theme.id),
-                  );
-                },
-              );
-          }
-        },
-      ),
+          case ThemeListStatus.loaded:
+            return GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.3,
+              ),
+              itemCount: state.themes.length,
+              itemBuilder: (context, index) {
+                final theme = state.themes[index];
+                final isSelected = theme.id == state.selectedThemeId;
+                return _ThemeCard(
+                  theme: theme,
+                  isSelected: isSelected,
+                  onTap: () => _applyTheme(context, theme.id),
+                );
+              },
+            );
+        }
+      },
     );
   }
 }

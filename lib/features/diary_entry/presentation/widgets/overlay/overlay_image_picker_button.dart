@@ -1,4 +1,4 @@
-// lib/features/diary_entry/presentation/widgets/overlay_image_picker_button.dart
+// lib/features/diary_entry/presentation/widgets/overlay/overlay_image_picker_button.dart
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';

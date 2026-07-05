@@ -1,4 +1,4 @@
-// lib/features/home/presentation/widgets/empty_state_widget.dart
+// lib/features/shared/presentation/widgets/empty_state_widget.dart
 
 import 'package:flutter/material.dart';
 

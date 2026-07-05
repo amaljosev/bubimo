@@ -1,8 +1,8 @@
-// lib/features/diary_entry/presentation/widgets/diary_list_item.dart
+// lib/features/home/presentation/widgets/diary_list_item.dart
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/diary_entry.dart';
+import '../../../diary_entry/domain/entities/diary_entry.dart';
 
 /// List tile for a single diary entry on the Home Screen.
 ///

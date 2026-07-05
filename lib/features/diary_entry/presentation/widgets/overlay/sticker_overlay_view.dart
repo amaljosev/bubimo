@@ -1,10 +1,10 @@
-// lib/features/diary_entry/presentation/widgets/sticker_overlay_view.dart
+// lib/features/diary_entry/presentation/widgets/overlay/sticker_overlay_view.dart
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/sticker.dart';
+import '../../../domain/entities/sticker.dart';
 
 /// Read-only, positioned rendering of a single [Sticker] for the diary
 /// entry view (detail) page.

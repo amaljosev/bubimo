@@ -1,11 +1,11 @@
-// lib/features/diary_entry/presentation/widgets/overlay_image_view.dart
+// lib/features/diary_entry/presentation/widgets/overlay/overlay_image_view.dart
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/overlay_image.dart';
-import 'full_screen_image_viewer.dart';
+import '../../../domain/entities/overlay_image.dart';
+import '../full_screen_image_viewer.dart';
 
 /// Read-only, positioned rendering of a single [OverlayImage] for the
 /// diary entry view (detail) page.

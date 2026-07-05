@@ -1,10 +1,10 @@
-// lib/features/diary_entry/presentation/widgets/editable_sticker_overlay.dart
+// lib/features/diary_entry/presentation/widgets/overlay/editable_sticker_overlay.dart
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/sticker.dart';
+import '../../../domain/entities/sticker.dart';
 import 'transformable_item.dart';
 
 /// Interactive, draggable/rotatable/resizable rendering of a single

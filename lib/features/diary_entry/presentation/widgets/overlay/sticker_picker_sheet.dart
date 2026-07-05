@@ -1,4 +1,4 @@
-// lib/features/diary_entry/presentation/widgets/sticker_picker_sheet.dart
+// lib/features/diary_entry/presentation/widgets/overlay/sticker_picker_sheet.dart
 
 import 'dart:developer';
 
@@ -6,8 +6,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../core/di/injection.dart';
-import '../bloc/sticker_picker/sticker_picker_bloc.dart';
+import '../../../../../core/di/injection.dart';
+import '../../bloc/sticker_picker/sticker_picker_bloc.dart';
 
 /// Opens the sticker picker bottom sheet and returns the URL of the
 /// sticker the user tapped, or `null` if they dismissed it without

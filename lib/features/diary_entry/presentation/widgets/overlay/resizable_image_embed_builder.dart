@@ -1,11 +1,11 @@
-// lib/features/diary_entry/presentation/widgets/resizable_image_embed_builder.dart
+// lib/features/diary_entry/presentation/widgets/overlay/resizable_image_embed_builder.dart
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 
-import 'full_screen_image_viewer.dart';
+import '../full_screen_image_viewer.dart';
 
 /// Custom image `EmbedBuilder` with a real drag-to-resize handle and a
 /// remove handle.

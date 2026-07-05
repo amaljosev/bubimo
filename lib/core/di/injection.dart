@@ -1,6 +1,6 @@
 // lib/core/di/injection.dart
 
-import 'package:bubimo/features/diary_entry/presentation/bloc/diary_list/diary_list_bloc.dart';
+import 'package:bubimo/features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
 import 'package:bubimo/features/theme/%20data/datasources/theme_local_data_source.dart';
 import 'package:bubimo/features/theme/%20data/repositories/theme_repository_impl.dart';
 import 'package:get_it/get_it.dart';

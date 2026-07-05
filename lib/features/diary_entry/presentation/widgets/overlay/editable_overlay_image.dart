@@ -1,10 +1,10 @@
-// lib/features/diary_entry/presentation/widgets/editable_overlay_image.dart
+// lib/features/diary_entry/presentation/widgets/overlay/editable_overlay_image.dart
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/overlay_image.dart';
+import '../../../domain/entities/overlay_image.dart';
 import 'transformable_item.dart';
 
 /// Interactive, draggable/rotatable/resizable rendering of a single

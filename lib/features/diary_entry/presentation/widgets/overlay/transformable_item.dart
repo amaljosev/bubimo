@@ -1,4 +1,4 @@
-// lib/features/diary_entry/presentation/widgets/transformable_item.dart
+// lib/features/diary_entry/presentation/widgets/overlay/transformable_item.dart
 //
 // Ported from the old project's canvas-editor implementation. Fully
 // generic — no coupling to any domain entity — so it's reused as-is to

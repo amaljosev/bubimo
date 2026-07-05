@@ -1,4 +1,4 @@
-// lib/features/diary_entry/presentation/widgets/dashed_border_painter.dart
+// lib/features/diary_entry/presentation/widgets/overlay/dashed_border_painter.dart
 
 import 'package:flutter/material.dart';
 

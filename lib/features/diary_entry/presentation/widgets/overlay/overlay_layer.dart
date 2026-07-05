@@ -1,11 +1,11 @@
-// lib/features/diary_entry/presentation/widgets/overlay_layer.dart
+// lib/features/diary_entry/presentation/widgets/overlay/overlay_layer.dart
 
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/overlay_image.dart';
-import '../../domain/entities/sticker.dart';
+import '../../../domain/entities/overlay_image.dart';
+import '../../../domain/entities/sticker.dart';
 import 'editable_overlay_image.dart';
 import 'editable_sticker_overlay.dart';
 

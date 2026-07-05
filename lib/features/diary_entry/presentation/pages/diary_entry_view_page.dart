@@ -18,9 +18,9 @@ import '../../domain/usecases/delete_diary_entry.dart';
 import '../../domain/usecases/get_diary_entry_by_id.dart';
 import '../../domain/usecases/update_diary_entry.dart';
 import '../widgets/confirm_delete_dialog.dart';
-import '../widgets/overlay_image_view.dart';
-import '../widgets/resizable_image_embed_builder.dart';
-import '../widgets/sticker_overlay_view.dart';
+import '../widgets/overlay/overlay_image_view.dart';
+import '../widgets/overlay/resizable_image_embed_builder.dart';
+import '../widgets/overlay/sticker_overlay_view.dart';
 
 /// Displays a single diary entry in full, with favorite toggle, edit,
 /// and delete actions.
