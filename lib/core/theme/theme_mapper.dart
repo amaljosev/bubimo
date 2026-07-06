@@ -1,6 +1,7 @@
 // lib/core/theme/theme_mapper.dart
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../features/theme/domain/entities/app_theme_data.dart';
 import 'background_image_theme_extension.dart';
@@ -28,6 +29,13 @@ import 'background_image_theme_extension.dart';
 /// derived rather than stored as a separate flag, so a theme's declared
 /// background color and its light/dark classification can never
 /// disagree.
+///
+/// [AppThemeData.fontFamily] is a Google Fonts family name (e.g.
+/// `'Poppins'`, `'Caveat'`) applied across the entire generated
+/// `TextTheme` via `GoogleFonts.getTextTheme` — every text style
+/// (headings through body) uses the theme's font, per product decision.
+/// `GoogleFonts.getTextTheme` also fetches/caches the font at runtime,
+/// so no font asset bundling or pubspec registration is needed per font.
 ThemeData buildThemeData(AppThemeData theme) {
   final primaryColor = _colorFromHex(theme.primaryColor);
   final accentColor = _colorFromHex(theme.accentColor);
@@ -41,15 +49,29 @@ ThemeData buildThemeData(AppThemeData theme) {
     brightness: brightness,
   );
 
+  // Base text theme (correct on-surface colors for light/dark) first,
+  // then swap in the theme's font family across all styles.
+  final baseTextTheme = brightness == Brightness.dark
+      ? ThemeData(brightness: Brightness.dark).textTheme
+      : ThemeData(brightness: Brightness.light).textTheme;
+  final themedTextTheme = GoogleFonts.getTextTheme(
+    theme.fontFamily,
+    baseTextTheme,
+  );
+
   return ThemeData(
     useMaterial3: true,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: backgroundColor,
+    textTheme: themedTextTheme,
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: colorScheme.onSurface,
       elevation: 0,
       centerTitle: true,
+      titleTextStyle: themedTextTheme.titleLarge?.copyWith(
+        color: colorScheme.onSurface,
+      ),
     ),
     extensions: [
       BackgroundImageTheme(imagePath: theme.headerImagePath),

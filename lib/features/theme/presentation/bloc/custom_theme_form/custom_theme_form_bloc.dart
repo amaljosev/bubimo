@@ -32,9 +32,15 @@ class CustomThemeFormBloc
       (event, emit) =>
           emit(state.copyWith(accentColor: event.hexColor)),
     );
+    on<CustomThemeFontChanged>(
+      (event, emit) => emit(state.copyWith(fontFamily: event.fontFamily)),
+    );
     on<CustomThemeHeaderImagePicked>(
       (event, emit) =>
           emit(state.copyWith(headerImagePath: event.imagePath)),
+    );
+    on<CustomThemeHeaderImageCleared>(
+      (event, emit) => emit(state.copyWith(clearHeaderImage: true)),
     );
     on<CustomThemeFormSubmitted>(_onSubmitted);
   }
@@ -65,6 +71,7 @@ class CustomThemeFormBloc
       primaryColor: state.primaryColor,
       backgroundColor: state.backgroundColor,
       accentColor: state.accentColor,
+      fontFamily: state.fontFamily,
       headerImagePath: state.headerImagePath,
     );
 

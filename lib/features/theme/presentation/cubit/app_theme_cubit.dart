@@ -6,6 +6,7 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/theme/theme_mapper.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../../domain/usecases/get_selected_theme.dart';
 import '../../domain/usecases/select_theme.dart';
@@ -16,6 +17,11 @@ import '../../domain/usecases/select_theme.dart';
 ///
 /// This is registered as a lazy singleton in GetIt (not a factory),
 /// since it must persist for the app's entire lifetime.
+///
+/// [ThemeData] construction (color scheme, font, header image
+/// extension) is delegated to [buildThemeData] in `theme_mapper.dart`
+/// rather than built inline here, so that conversion logic stays
+/// independently readable/testable and isn't duplicated.
 class AppThemeCubit extends Cubit<ThemeData> {
   final GetSelectedTheme getSelectedTheme;
   final SelectTheme selectTheme;
@@ -43,7 +49,7 @@ class AppThemeCubit extends Cubit<ThemeData> {
       },
       (theme) {
         currentTheme = theme;
-        emit(_buildThemeData(theme));
+        emit(buildThemeData(theme));
       },
     );
   }
@@ -58,21 +64,9 @@ class AppThemeCubit extends Cubit<ThemeData> {
       (failure) => Left(failure),
       (theme) {
         currentTheme = theme;
-        emit(_buildThemeData(theme));
+        emit(buildThemeData(theme));
         return const Right(null);
       },
     );
-  }
-
-  ThemeData _buildThemeData(AppThemeData theme) {
-    final base = AppTheme.light(seedColor: _colorFromHex(theme.primaryColor));
-    return base.copyWith(
-      scaffoldBackgroundColor: _colorFromHex(theme.backgroundColor),
-    );
-  }
-
-  Color _colorFromHex(String hex) {
-    final cleaned = hex.replaceFirst('#', '');
-    return Color(int.parse('FF$cleaned', radix: 16));
   }
 }

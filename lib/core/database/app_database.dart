@@ -1,4 +1,4 @@
-// lib/core/db/app_database.dart
+// lib/core/database/app_database.dart
 
 import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
@@ -18,7 +18,7 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  static const int _databaseVersion = 2;
+  static const int _databaseVersion = 3;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -66,6 +66,15 @@ class AppDatabase {
       for (final sql in DiaryEntriesTable.addOverlayOpacityColumnsSql) {
         await db.execute(sql);
       }
+    }
+
+    if (oldVersion < 3) {
+      // Adds font_family to custom_themes, introduced alongside the
+      // upgraded theme system (color + font + header image per theme).
+      // Existing custom themes were created before font selection
+      // existed, so they're backfilled with a sensible default
+      // (CustomThemesTable.defaultFontFamily) rather than left null.
+      await db.execute(CustomThemesTable.addFontFamilyColumnSql);
     }
   }
 

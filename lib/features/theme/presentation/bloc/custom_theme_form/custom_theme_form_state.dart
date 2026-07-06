@@ -10,6 +10,7 @@ class CustomThemeFormState extends Equatable {
   final String primaryColor;
   final String backgroundColor;
   final String accentColor;
+  final String fontFamily;
   final String? headerImagePath;
   final String? errorMessage;
 
@@ -19,19 +20,28 @@ class CustomThemeFormState extends Equatable {
     this.primaryColor = '#6750A4',
     this.backgroundColor = '#FFFBFE',
     this.accentColor = '#7D5260',
+    this.fontFamily = 'Poppins',
     this.headerImagePath,
     this.errorMessage,
   });
 
   bool get isSubmitting => status == CustomThemeFormStatus.submitting;
 
+  /// [clearHeaderImage] exists because the ordinary
+  /// `headerImagePath ?? this.headerImagePath` pattern below can never
+  /// express "set it back to null" — passing `null` for `headerImagePath`
+  /// just falls through to the existing value. Set `clearHeaderImage:
+  /// true` (and leave `headerImagePath` unset) to explicitly remove the
+  /// picked image, e.g. from the form's "remove image" action.
   CustomThemeFormState copyWith({
     CustomThemeFormStatus? status,
     String? name,
     String? primaryColor,
     String? backgroundColor,
     String? accentColor,
+    String? fontFamily,
     String? headerImagePath,
+    bool clearHeaderImage = false,
     String? errorMessage,
   }) {
     return CustomThemeFormState(
@@ -40,7 +50,9 @@ class CustomThemeFormState extends Equatable {
       primaryColor: primaryColor ?? this.primaryColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       accentColor: accentColor ?? this.accentColor,
-      headerImagePath: headerImagePath ?? this.headerImagePath,
+      fontFamily: fontFamily ?? this.fontFamily,
+      headerImagePath:
+          clearHeaderImage ? null : (headerImagePath ?? this.headerImagePath),
       errorMessage: errorMessage,
     );
   }
@@ -52,6 +64,7 @@ class CustomThemeFormState extends Equatable {
         primaryColor,
         backgroundColor,
         accentColor,
+        fontFamily,
         headerImagePath,
         errorMessage,
       ];

@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
@@ -22,8 +23,23 @@ const List<String> _swatchPalette = [
   '#212121', '#37474F', '#4E342E', '#1B5E20', '#0D47A1',
 ];
 
+/// Fixed list of selectable Google Fonts, mirroring the fixed-swatch-
+/// palette approach used for colors above — keeps the font picker a
+/// simple, curated list rather than pulling in a full font-browser
+/// package.
+const List<String> _fontChoices = [
+  'Poppins',
+  'Comfortaa',
+  'Caveat',
+  'Lora',
+  'Nunito',
+  'Merriweather',
+  'Quicksand',
+  'Playfair Display',
+];
+
 /// Lets the user build and save a custom theme: name, three color
-/// swatches, and an optional header image from the gallery.
+/// swatches, a font, and an optional header image from the gallery.
 ///
 /// Note: header image picking uses the `image_picker` package, which
 /// needs to be added to pubspec.yaml — it isn't in the original locked
@@ -60,11 +76,19 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
 
   Future<void> _pickHeaderImage(BuildContext context) async {
     final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
+    // A null result means the user cancelled the picker — leave the
+    // existing selection untouched rather than dispatching anything.
     if (picked != null && context.mounted) {
       context
           .read<CustomThemeFormBloc>()
           .add(CustomThemeHeaderImagePicked(picked.path));
     }
+  }
+
+  void _removeHeaderImage(BuildContext context) {
+    context.read<CustomThemeFormBloc>().add(
+          const CustomThemeHeaderImageCleared(),
+        );
   }
 
   Color _colorFromHex(String hex) {
@@ -103,6 +127,7 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
               _HeaderImagePicker(
                 imagePath: state.headerImagePath,
                 onTap: () => _pickHeaderImage(context),
+                onRemove: () => _removeHeaderImage(context),
               ),
               const SizedBox(height: 20),
               _ColorSwatchSection(
@@ -130,6 +155,13 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemeAccentColorChanged(hex)),
                 colorFromHex: _colorFromHex,
+              ),
+              const SizedBox(height: 20),
+              _FontPickerSection(
+                selectedFont: state.fontFamily,
+                onSelected: (font) => context
+                    .read<CustomThemeFormBloc>()
+                    .add(CustomThemeFontChanged(font)),
               ),
               const SizedBox(height: 28),
               FilledButton(
@@ -159,38 +191,75 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
 class _HeaderImagePicker extends StatelessWidget {
   final String? imagePath;
   final VoidCallback onTap;
+  final VoidCallback onRemove;
 
-  const _HeaderImagePicker({required this.imagePath, required this.onTap});
+  const _HeaderImagePicker({
+    required this.imagePath,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 120,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          image: imagePath != null
-              ? DecorationImage(
-                  image: FileImage(File(imagePath!)),
-                  fit: BoxFit.cover,
-                )
-              : null,
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 120,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              image: imagePath != null
+                  ? DecorationImage(
+                      image: FileImage(File(imagePath!)),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: imagePath == null
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.image_outlined, size: 32),
+                        SizedBox(height: 4),
+                        Text('Choose header image'),
+                      ],
+                    ),
+                  )
+                : null,
+          ),
         ),
-        child: imagePath == null
-            ? const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.image_outlined, size: 32),
-                    SizedBox(height: 4),
-                    Text('Choose header image'),
-                  ],
-                ),
-              )
-            : null,
+        if (imagePath != null)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: _RemoveImageButton(onPressed: onRemove),
+          ),
+      ],
+    );
+  }
+}
+
+class _RemoveImageButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _RemoveImageButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black54,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onPressed,
+        child: const Padding(
+          padding: EdgeInsets.all(6),
+          child: Icon(Icons.close, size: 18, color: Colors.white),
+        ),
       ),
     );
   }
@@ -237,6 +306,54 @@ class _ColorSwatchSection extends StatelessWidget {
                   ),
                 ),
               ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Lets the user pick a font from [_fontChoices]. Each option previews
+/// its own font live via `GoogleFonts.getFont`, so the choice is visible
+/// before saving rather than shown only as a plain label.
+class _FontPickerSection extends StatelessWidget {
+  final String selectedFont;
+  final ValueChanged<String> onSelected;
+
+  const _FontPickerSection({
+    required this.selectedFont,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Font', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _fontChoices.map((font) {
+            final isSelected = font == selectedFont;
+            return ChoiceChip(
+              label: Text(
+                font,
+                style: GoogleFonts.getFont(
+                  font,
+                  fontSize: 14,
+                  color: isSelected
+                      ? colorScheme.onPrimary
+                      : colorScheme.onSurface,
+                ),
+              ),
+              selected: isSelected,
+              onSelected: (_) => onSelected(font),
+              selectedColor: colorScheme.primary,
             );
           }).toList(),
         ),

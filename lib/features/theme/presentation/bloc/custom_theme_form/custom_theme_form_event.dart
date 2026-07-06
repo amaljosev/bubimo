@@ -45,13 +45,39 @@ final class CustomThemeAccentColorChanged extends CustomThemeFormEvent {
   List<Object?> get props => [hexColor];
 }
 
+/// Fired when the user picks a font from the fixed font list on the
+/// Custom Theme Screen.
+final class CustomThemeFontChanged extends CustomThemeFormEvent {
+  final String fontFamily;
+
+  const CustomThemeFontChanged(this.fontFamily);
+
+  @override
+  List<Object?> get props => [fontFamily];
+}
+
+/// Fired when the user picks a header image from the gallery. [imagePath]
+/// is always non-null when fired from the picker — image_picker returning
+/// null (user cancelled) means the bloc simply doesn't dispatch this
+/// event at all, so the existing selection is left untouched.
+///
+/// To explicitly REMOVE an already-picked image, use
+/// [CustomThemeHeaderImageCleared] instead — a null [imagePath] here
+/// would be indistinguishable from "no change" under the state's
+/// `copyWith` semantics.
 final class CustomThemeHeaderImagePicked extends CustomThemeFormEvent {
-  final String? imagePath;
+  final String imagePath;
 
   const CustomThemeHeaderImagePicked(this.imagePath);
 
   @override
   List<Object?> get props => [imagePath];
+}
+
+/// Fired when the user taps "remove image" to go back to a no-header-
+/// image theme.
+final class CustomThemeHeaderImageCleared extends CustomThemeFormEvent {
+  const CustomThemeHeaderImageCleared();
 }
 
 /// Fired when the user taps Save. The bloc validates (non-empty name)

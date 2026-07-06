@@ -9,6 +9,18 @@ import 'package:equatable/equatable.dart';
 /// Flutter's `Color` type, keeping the domain layer free of Flutter
 /// framework dependencies. The presentation layer converts to/from
 /// `Color` when building actual `ThemeData`.
+///
+/// [fontFamily] is a Google Fonts family name (e.g. `'Poppins'`) — kept
+/// as a plain string for the same reason colors are hex strings: the
+/// domain layer stays free of any font-loading package dependency. The
+/// presentation layer resolves it via `GoogleFonts.getFont`/
+/// `GoogleFonts.getTextTheme`.
+///
+/// [headerImagePath] is optional — themes with no header image (e.g.
+/// the original color-only presets, or a custom theme the user chose
+/// not to attach an image to) simply leave this null. Default preset
+/// images point at bundled assets (`assets/theme/...`); custom theme
+/// images point at file paths from `image_picker`.
 class AppThemeData extends Equatable {
   final String id;
   final String name;
@@ -20,6 +32,7 @@ class AppThemeData extends Equatable {
   final String primaryColor;
   final String backgroundColor;
   final String accentColor;
+  final String fontFamily;
   final String? headerImagePath;
 
   const AppThemeData({
@@ -29,6 +42,7 @@ class AppThemeData extends Equatable {
     required this.primaryColor,
     required this.backgroundColor,
     required this.accentColor,
+    required this.fontFamily,
     this.headerImagePath,
   });
 
@@ -39,6 +53,7 @@ class AppThemeData extends Equatable {
     String? primaryColor,
     String? backgroundColor,
     String? accentColor,
+    String? fontFamily,
     String? headerImagePath,
   }) {
     return AppThemeData(
@@ -48,6 +63,7 @@ class AppThemeData extends Equatable {
       primaryColor: primaryColor ?? this.primaryColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       accentColor: accentColor ?? this.accentColor,
+      fontFamily: fontFamily ?? this.fontFamily,
       headerImagePath: headerImagePath ?? this.headerImagePath,
     );
   }
@@ -60,6 +76,7 @@ class AppThemeData extends Equatable {
         primaryColor,
         backgroundColor,
         accentColor,
+        fontFamily,
         headerImagePath,
       ];
 }

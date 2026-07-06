@@ -80,7 +80,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar:_currentIndex==0?null: AppBar(
         title: Text(_tabs[_currentIndex].label),
         actions: _buildAppBarActions(context),
       ),
