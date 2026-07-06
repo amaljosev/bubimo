@@ -55,6 +55,8 @@ dependencies:
     sdk: flutter
   cached_network_image: ^3.4.1
   intl: ^0.20.2
+  table_calendar: ^3.2.0
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

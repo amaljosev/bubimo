@@ -13,15 +13,35 @@ import '../widgets/mood_count_chart.dart';
 import '../widgets/stats_summary_card.dart';
 import '../widgets/streak_display.dart';
 
-/// The Analytics tab's content. Its [AnalyticsBloc] is provided by
-/// [MainShell] (created once, kept alive across tab switches) — this
-/// widget only consumes it, it does not create it.
+/// The Analytics screen.
+///
+/// Originally an embedded tab body inside [MainShell]; now reached by
+/// pushing from [SettingsPage]'s "Analytics" row, so it owns its own
+/// [Scaffold]/[AppBar] (with a back button) rather than relying on
+/// shell-provided chrome — a bare (Scaffold-less) body here would
+/// render with no background/Material surface once it's no longer
+/// nested inside MainShell's own Scaffold.
+///
+/// Its [AnalyticsBloc] is provided by the route (see AppRoutes.analytics
+/// in app_router.dart) — this widget only consumes it, it does not
+/// create it.
 class AnalyticsScreen extends StatelessWidget {
   const AnalyticsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const _AnalyticsScreenView();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
+        title: const Text('Analytics'),
+      ),
+      body: const _AnalyticsScreenView(),
+    );
   }
 }
 
@@ -30,7 +50,6 @@ class _AnalyticsScreenView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // No Scaffold/AppBar here — MainShell provides both.
     return BlocBuilder<AnalyticsBloc, AnalyticsState>(
       builder: (context, state) {
         switch (state.status) {

@@ -19,19 +19,19 @@ class StreakDisplay extends StatelessWidget {
       children: [
         Expanded(
           child: _StreakCard(
-            icon: Icons.local_fire_department,
-            label: 'Current Streak',
+            icon: Icons.local_fire_department_rounded,
+            label: 'Current streak',
             value: currentStreak,
-            iconColor: Colors.deepOrange,
+            accent: Colors.deepOrange,
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: _StreakCard(
-            icon: Icons.emoji_events,
-            label: 'Longest Streak',
+            icon: Icons.emoji_events_rounded,
+            label: 'Longest streak',
             value: longestStreak,
-            iconColor: Colors.amber.shade700,
+            accent: Colors.amber.shade700,
           ),
         ),
       ],
@@ -43,30 +43,65 @@ class _StreakCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final int value;
-  final Color iconColor;
+  final Color accent;
 
   const _StreakCard({
     required this.icon,
     required this.label,
     required this.value,
-    required this.iconColor,
+    required this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: iconColor, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              '$value ${value == 1 ? 'day' : 'days'}',
-              style: Theme.of(context).textTheme.headlineSmall,
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: accent, size: 22),
             ),
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  '$value',
+                  style: textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  value == 1 ? 'day' : 'days',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),

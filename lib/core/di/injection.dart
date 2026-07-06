@@ -44,6 +44,14 @@ import '../../features/analytics/domain/usecases/get_longest_streak.dart';
 import '../../features/analytics/domain/usecases/get_mood_counts.dart';
 import '../../features/analytics/presentation/bloc/analytics/analytics_bloc.dart';
 
+// profile
+import '../../features/profile/data/datasources/profile_local_data_source.dart';
+import '../../features/profile/data/repositories/profile_repository_impl.dart';
+import '../../features/profile/domain/repositories/profile_repository.dart';
+import '../../features/profile/domain/usecases/get_user_profile.dart';
+import '../../features/profile/domain/usecases/update_user_profile.dart';
+import '../../features/profile/presentation/cubit/profile_cubit.dart';
+
 // backgrounds
 import '../../features/backgrounds/data/datasources/supabase_background_data_source.dart';
 import '../../features/backgrounds/presentation/bloc/background_picker/background_picker_bloc.dart';
@@ -189,6 +197,28 @@ Future<void> configureDependencies() async {
       getLongestStreak: getIt<GetLongestStreak>(),
       getHeatmapData: getIt<GetHeatmapData>(),
       getEntryStats: getIt<GetEntryStats>(),
+    ),
+  );
+
+  // --- profile ---
+  // Backs the combined Profile & Analytics screen's profile section
+  // (photo, username, diary name, header image). AnalyticsBloc above
+  // is reused as-is for that screen's analytics section.
+  getIt.registerLazySingleton<ProfileLocalDataSource>(
+    () => ProfileLocalDataSourceImpl(getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<ProfileRepository>(
+    () => ProfileRepositoryImpl(getIt<ProfileLocalDataSource>()),
+  );
+  getIt.registerLazySingleton(() => GetUserProfile(getIt<ProfileRepository>()));
+  getIt.registerLazySingleton(
+    () => UpdateUserProfile(getIt<ProfileRepository>()),
+  );
+
+  getIt.registerFactory(
+    () => ProfileCubit(
+      getUserProfile: getIt<GetUserProfile>(),
+      updateUserProfile: getIt<UpdateUserProfile>(),
     ),
   );
 

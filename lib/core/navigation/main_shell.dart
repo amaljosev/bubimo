@@ -1,35 +1,53 @@
 // lib/core/navigation/main_shell.dart
 
+import 'package:bubimo/features/profile/presentation/pages/profile_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/analytics/presentation/bloc/analytics/analytics_bloc.dart';
 import '../../features/analytics/presentation/bloc/analytics/analytics_event.dart';
-import '../../features/analytics/presentation/pages/analytics_screen.dart';
+import '../../features/favorites/presentation/pages/favorites_page.dart';
 import '../../features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
 import '../../features/home/presentation/bloc/diary_list/diary_list_event.dart';
 import '../../features/home/presentation/pages/home_page.dart';
-import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
-import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_event.dart';
-import '../../features/reminders/presentation/pages/reminder_settings_page.dart';
+import '../../features/profile/presentation/cubit/profile_cubit.dart';
 import '../../features/theme/presentation/bloc/theme_list/theme_list_bloc.dart';
 import '../../features/theme/presentation/bloc/theme_list/theme_list_event.dart';
 import '../../features/theme/presentation/pages/theme_screen.dart';
+import '../../features/timeline/presentation/pages/timeline_page.dart';
 import '../di/injection.dart';
 import '../router/app_router.dart';
 
-/// App-wide navigation shell. Owns the bottom navigation bar, the single
-/// shared [AppBar], and an [IndexedStack] of the four top-level tabs.
+/// App-wide navigation shell. Owns the bottom navigation bar and an
+/// [IndexedStack] of the five top-level tabs: Timeline, Favorites,
+/// Diary, Themes, Profile.
 ///
 /// Each tab's BLoC is created exactly once here (not inside its page),
 /// so switching tabs preserves scroll position and data — no refetching,
-/// no rebuild of offscreen tabs beyond the initial build.
+/// no rebuild of offscreen tabs beyond the initial build. Timeline and
+/// Favorites don't get their own bloc: both read the same shared
+/// [DiaryListBloc] the Diary tab uses, since all three are just
+/// different views over the same entry list.
 ///
-/// Screens embedded here (HomePage, ThemeScreen, AnalyticsScreen,
-/// ReminderSettingsPage) must not include their own Scaffold/AppBar —
-/// the shell provides both. Their own BlocProviders have been removed
-/// in favor of the ones created below.
+/// Every tab provides its own Scaffold/AppBar (Diary and Timeline use a
+/// collapsing SliverAppBar with the theme's header image; Favorites and
+/// Profile use a plain AppBar) — Themes is the only tab that still
+/// relies on a shell-level shared AppBar, since it needs the "Custom
+/// Theme" action button.
+///
+/// The Profile tab renders [ProfileAnalyticsScreen] — the combined
+/// Profile & Analytics screen — so it needs both a [ProfileCubit] and
+/// an [AnalyticsBloc] in scope. Both are created once here (alongside
+/// [_diaryListBloc]/[_themeListBloc]) rather than per-build, for the
+/// same reason: switching away and back to the Profile tab shouldn't
+/// re-trigger a full reload. The same screen is ALSO reached by pushing
+/// AppRoutes.profile (e.g. not currently used, but kept available) —
+/// that pushed route provides its own fresh instances since it sits
+/// outside this shell's widget tree.
+///
+/// Settings is NOT a tab — it's reached by pushing from Profile (gear
+/// icon). See AppRoutes.settings.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -38,19 +56,20 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int _currentIndex = 0;
+  int _currentIndex = 2; // Diary is the default landing tab.
 
   // Created once and kept alive for the lifetime of the shell.
   late final DiaryListBloc _diaryListBloc;
   late final ThemeListBloc _themeListBloc;
+  late final ProfileCubit _profileCubit;
   late final AnalyticsBloc _analyticsBloc;
-  late final ReminderSettingsBloc _reminderSettingsBloc;
 
   static const List<_TabConfig> _tabs = [
+    _TabConfig(label: 'Timeline', icon: Icons.calendar_month_outlined, activeIcon: Icons.calendar_month),
+    _TabConfig(label: 'Favorites', icon: Icons.favorite_outline, activeIcon: Icons.favorite),
     _TabConfig(label: 'Diary', icon: Icons.book_outlined, activeIcon: Icons.book),
     _TabConfig(label: 'Themes', icon: Icons.palette_outlined, activeIcon: Icons.palette),
-    _TabConfig(label: 'Analytics', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart),
-    _TabConfig(label: 'Reminders', icon: Icons.notifications_outlined, activeIcon: Icons.notifications),
+    _TabConfig(label: 'Profile', icon: Icons.person_outline, activeIcon: Icons.person),
   ];
 
   @override
@@ -58,17 +77,16 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     _diaryListBloc = getIt<DiaryListBloc>()..add(const LoadDiaryEntries());
     _themeListBloc = getIt<ThemeListBloc>()..add(const LoadThemes());
+    _profileCubit = getIt<ProfileCubit>()..loadProfile();
     _analyticsBloc = getIt<AnalyticsBloc>()..add(const LoadAnalytics());
-    _reminderSettingsBloc = getIt<ReminderSettingsBloc>()
-      ..add(const LoadReminderSettings());
   }
 
   @override
   void dispose() {
     _diaryListBloc.close();
     _themeListBloc.close();
+    _profileCubit.close();
     _analyticsBloc.close();
-    _reminderSettingsBloc.close();
     super.dispose();
   }
 
@@ -77,16 +95,31 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
   }
 
+  /// Only the Themes tab (index 3) needs the shell's own AppBar — every
+  /// other tab renders its own (Timeline/Diary via SliverAppBar,
+  /// Favorites/Profile via a plain AppBar).
+  bool get _needsSharedAppBar => _currentIndex == 3;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar:_currentIndex==0?null: AppBar(
-        title: Text(_tabs[_currentIndex].label),
-        actions: _buildAppBarActions(context),
-      ),
+      appBar: _needsSharedAppBar
+          ? AppBar(
+              title: Text(_tabs[_currentIndex].label),
+              actions: _buildAppBarActions(context),
+            )
+          : null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
+          BlocProvider.value(
+            value: _diaryListBloc,
+            child: const TimelinePage(),
+          ),
+          BlocProvider.value(
+            value: _diaryListBloc,
+            child: const FavoritesPage(),
+          ),
           BlocProvider.value(
             value: _diaryListBloc,
             child: const HomePage(),
@@ -95,13 +128,12 @@ class _MainShellState extends State<MainShell> {
             value: _themeListBloc,
             child: const ThemeScreen(),
           ),
-          BlocProvider.value(
-            value: _analyticsBloc,
-            child: const AnalyticsScreen(),
-          ),
-          BlocProvider.value(
-            value: _reminderSettingsBloc,
-            child: const ReminderSettingsPage(),
+          MultiBlocProvider(
+            providers: [
+              BlocProvider.value(value: _profileCubit),
+              BlocProvider.value(value: _analyticsBloc),
+            ],
+            child: const ProfileAnalyticsScreen(),
           ),
         ],
       ),
@@ -121,11 +153,10 @@ class _MainShellState extends State<MainShell> {
   }
 
   /// Tab-specific AppBar actions. Only the Themes tab currently needs one
-  /// (the "Custom Theme" action, moved here from its old FAB). Extend this
-  /// switch as other tabs need their own actions.
+  /// (the "Custom Theme" action, moved here from its old FAB).
   List<Widget>? _buildAppBarActions(BuildContext context) {
     switch (_currentIndex) {
-      case 1: // Themes tab
+      case 3: // Themes tab
         return [
           IconButton(
             icon: const Icon(Icons.add),

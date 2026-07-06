@@ -12,28 +12,33 @@ class StatsSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
         child: Row(
           children: [
             Expanded(
               child: _StatColumn(
-                icon: Icons.menu_book_outlined,
+                icon: Icons.menu_book_rounded,
                 value: '${stats.totalEntries}',
-                label: 'Total Entries',
+                label: 'Total entries',
               ),
             ),
             Container(
               width: 1,
-              height: 40,
-              color: Theme.of(context).colorScheme.outlineVariant,
+              height: 44,
+              color: colorScheme.outlineVariant.withValues(alpha: 0.6),
             ),
             Expanded(
               child: _StatColumn(
-                icon: Icons.edit_note_outlined,
+                icon: Icons.edit_note_rounded,
                 value: '${stats.totalWords}',
-                label: 'Words Written',
+                label: 'Words written',
               ),
             ),
           ],
@@ -56,12 +61,23 @@ class _StatColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       children: [
-        Icon(icon, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 6),
-        Text(value, style: Theme.of(context).textTheme.titleLarge),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Icon(icon, color: colorScheme.primary, size: 26),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        Text(
+          label,
+          style: textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }

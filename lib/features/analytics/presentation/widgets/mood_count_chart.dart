@@ -1,12 +1,15 @@
 // lib/features/analytics/presentation/widgets/mood_count_chart.dart
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../diary_entry/domain/entities/mood.dart';
 
-/// Shows how many entries have each mood as a simple horizontal bar
-/// list — emoji, bar sized relative to the highest count, and the
-/// number itself. No charting package required.
+/// Shows how many entries have each mood as a rounded-bar chart, built
+/// with fl_chart. Bars are colored by a themed gradient from
+/// [ColorScheme.primary] to [ColorScheme.tertiary] rather than
+/// mood-specific colors, keeping the chart visually consistent with
+/// whatever theme the user has selected.
 class MoodCountChart extends StatelessWidget {
   final Map<Mood, int> moodCounts;
 
@@ -14,64 +17,130 @@ class MoodCountChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     final maxCount = moodCounts.values.isEmpty
         ? 0
         : moodCounts.values.reduce((a, b) => a > b ? a : b);
-
-    final colorScheme = Theme.of(context).colorScheme;
+    final chartMax = maxCount == 0 ? 1.0 : maxCount * 1.2;
 
     return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Moods', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            ...Mood.values.map((mood) {
-              final count = moodCounts[mood] ?? 0;
-              final fraction = maxCount == 0 ? 0.0 : count / maxCount;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Text(mood.emoji, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 56,
-                      child: Text(
-                        mood.label,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: fraction,
-                          minHeight: 10,
-                          backgroundColor:
-                              colorScheme.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation(
-                            colorScheme.primary,
+            Text(
+              'Moods',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'How you\'ve been feeling in your entries',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 180,
+              child: BarChart(
+                BarChartData(
+                  maxY: chartMax,
+                  alignment: BarChartAlignment.spaceAround,
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) => colorScheme.inverseSurface,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final mood = Mood.values[group.x.toInt()];
+                        return BarTooltipItem(
+                          '${mood.label}\n',
+                          TextStyle(
+                            color: colorScheme.onInverseSurface,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
                           ),
-                        ),
+                          children: [
+                            TextSpan(
+                              text: rod.toY.round().toString(),
+                              style: TextStyle(
+                                color: colorScheme.onInverseSurface,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= Mood.values.length) {
+                            return const SizedBox.shrink();
+                          }
+                          final mood = Mood.values[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              mood.emoji,
+                              style: const TextStyle(fontSize: 18),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 24,
-                      child: Text(
-                        '$count',
-                        textAlign: TextAlign.end,
-                        style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  barGroups: [
+                    for (var i = 0; i < Mood.values.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: (moodCounts[Mood.values[i]] ?? 0).toDouble(),
+                            width: 22,
+                            borderRadius: BorderRadius.circular(8),
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                colorScheme.primary,
+                                colorScheme.tertiary,
+                              ],
+                            ),
+                            backDrawRodData: BackgroundBarChartRodData(
+                              show: true,
+                              toY: chartMax,
+                              color: colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+            ),
           ],
         ),
       ),

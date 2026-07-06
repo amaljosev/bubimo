@@ -90,17 +90,18 @@ class _HomeViewState extends State<_HomeView> {
 
   @override
   Widget build(BuildContext context) {
-    final headerImagePath =
-        Theme.of(context).extension<BackgroundImageTheme>()?.imagePath;
+    final headerImagePath = Theme.of(
+      context,
+    ).extension<BackgroundImageTheme>()?.imagePath;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            pinned: true,
-            expandedHeight:
-                headerImagePath != null ? _headerExpandedHeight : kToolbarHeight,
+            expandedHeight: headerImagePath != null
+                ? _headerExpandedHeight
+                : kToolbarHeight,
             backgroundColor: colorScheme.surface,
             foregroundColor: colorScheme.onSurface,
             centerTitle: true,
@@ -187,9 +188,9 @@ class _HomeViewState extends State<_HomeView> {
                   return SliverFillRemaining(
                     child: ErrorScreen(
                       message: state.errorMessage ?? 'Something went wrong.',
-                      onRetry: () => context
-                          .read<DiaryListBloc>()
-                          .add(const LoadDiaryEntries()),
+                      onRetry: () => context.read<DiaryListBloc>().add(
+                        const LoadDiaryEntries(),
+                      ),
                     ),
                   );
 
@@ -222,6 +223,7 @@ class _HomeViewState extends State<_HomeView> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'diary_new_entry_fab',
         onPressed: () => _openCreateEntry(context),
         child: const Icon(Icons.add),
       ),

@@ -18,7 +18,7 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -75,6 +75,17 @@ class AppDatabase {
       // existed, so they're backfilled with a sensible default
       // (CustomThemesTable.defaultFontFamily) rather than left null.
       await db.execute(CustomThemesTable.addFontFamilyColumnSql);
+    }
+
+    if (oldVersion < 4) {
+      // Adds diary_name / avatar_path / header_image_path to
+      // user_profile, introduced alongside the combined Profile &
+      // Analytics screen. All three are nullable, so existing installs
+      // simply get NULL (falling back to defaults in the UI) rather
+      // than needing a backfill value.
+      for (final sql in UserProfileTable.addProfilePersonalizationColumnsSql) {
+        await db.execute(sql);
+      }
     }
   }
 

@@ -18,24 +18,42 @@ class HeatmapWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     if (heatmapData.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final weeks = _buildWeeks(heatmapData);
-    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Activity (last 365 days)',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Activity',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Last 365 days',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               reverse: true, // start scrolled to the most recent (right)
@@ -47,6 +65,14 @@ class HeatmapWidget extends StatelessWidget {
                           emptyColor: colorScheme.surfaceContainerHighest,
                         ))
                     .toList(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            _Legend(
+              filledColor: colorScheme.primary,
+              emptyColor: colorScheme.surfaceContainerHighest,
+              textStyle: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ],
@@ -119,13 +145,49 @@ class _WeekColumn extends StatelessWidget {
                 height: HeatmapWidget._cellSize,
                 decoration: BoxDecoration(
                   color: color,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(3.5),
                 ),
               ),
             ),
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+/// Small "Less → More" legend row explaining the two cell shades.
+class _Legend extends StatelessWidget {
+  final Color filledColor;
+  final Color emptyColor;
+  final TextStyle? textStyle;
+
+  const _Legend({
+    required this.filledColor,
+    required this.emptyColor,
+    required this.textStyle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(Color color) => Container(
+          width: HeatmapWidget._cellSize,
+          height: HeatmapWidget._cellSize,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3.5),
+          ),
+        );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Text('Less', style: textStyle),
+        cell(emptyColor),
+        cell(filledColor),
+        Text('More', style: textStyle),
+      ],
     );
   }
 }
