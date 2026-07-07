@@ -1,9 +1,9 @@
 // lib/features/settings/presentation/pages/settings_page.dart
 
+import 'package:bubimo/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/router/app_router.dart';
 import '../widgets/settings_list_item.dart';
 
 /// The Settings screen.

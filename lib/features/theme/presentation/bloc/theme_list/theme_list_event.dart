@@ -9,9 +9,37 @@ sealed class ThemeListEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Loads all themes (defaults + custom) plus the current selection, for
-/// the Theme Screen. Fired on init, and again after returning from the
-/// Custom Theme Screen with a new theme saved.
-final class LoadThemes extends ThemeListEvent {
-  const LoadThemes();
+/// Loads all themes (built-in + custom) and the currently active theme
+/// id. Dispatched on Theme Switcher screen init, and re-dispatched after
+/// returning from the Create/Edit Custom Theme screen or after a
+/// delete.
+final class ThemeListLoaded extends ThemeListEvent {
+  const ThemeListLoaded();
+}
+
+/// Applies [themeId] immediately — used for built-in themes (instant
+/// tap-to-apply) and as the handler behind the custom-theme "Apply
+/// Theme" button.
+final class ThemeListThemeApplied extends ThemeListEvent {
+  final String themeId;
+
+  const ThemeListThemeApplied(this.themeId);
+
+  @override
+  List<Object?> get props => [themeId];
+}
+
+/// Applies the default built-in theme — "Reset to Default" button.
+final class ThemeListResetToDefaultRequested extends ThemeListEvent {
+  const ThemeListResetToDefaultRequested();
+}
+
+/// Deletes a custom theme by id.
+final class ThemeListCustomThemeDeleted extends ThemeListEvent {
+  final String themeId;
+
+  const ThemeListCustomThemeDeleted(this.themeId);
+
+  @override
+  List<Object?> get props => [themeId];
 }

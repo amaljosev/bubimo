@@ -2,11 +2,37 @@
 
 import 'package:equatable/equatable.dart';
 
+import '../../../domain/entities/app_theme_data.dart';
+import '../../../domain/entities/rgba_color.dart';
+
 sealed class CustomThemeFormEvent extends Equatable {
   const CustomThemeFormEvent();
 
   @override
   List<Object?> get props => [];
+}
+
+/// Initializes the form for CREATE mode: every color field starts from
+/// [defaultTheme]'s colors, per spec ("All color fields should be
+/// initialized using the default theme's colors").
+final class CustomThemeFormInitialized extends CustomThemeFormEvent {
+  final AppThemeData defaultTheme;
+
+  const CustomThemeFormInitialized(this.defaultTheme);
+
+  @override
+  List<Object?> get props => [defaultTheme];
+}
+
+/// Initializes the form for EDIT mode, pre-filling every field from an
+/// existing custom theme.
+final class CustomThemeFormInitializedForEdit extends CustomThemeFormEvent {
+  final AppThemeData existingTheme;
+
+  const CustomThemeFormInitializedForEdit(this.existingTheme);
+
+  @override
+  List<Object?> get props => [existingTheme];
 }
 
 final class CustomThemeNameChanged extends CustomThemeFormEvent {
@@ -19,34 +45,32 @@ final class CustomThemeNameChanged extends CustomThemeFormEvent {
 }
 
 final class CustomThemePrimaryColorChanged extends CustomThemeFormEvent {
-  final String hexColor;
+  final RgbaColor color;
 
-  const CustomThemePrimaryColorChanged(this.hexColor);
+  const CustomThemePrimaryColorChanged(this.color);
 
   @override
-  List<Object?> get props => [hexColor];
+  List<Object?> get props => [color];
 }
 
 final class CustomThemeBackgroundColorChanged extends CustomThemeFormEvent {
-  final String hexColor;
+  final RgbaColor color;
 
-  const CustomThemeBackgroundColorChanged(this.hexColor);
+  const CustomThemeBackgroundColorChanged(this.color);
 
   @override
-  List<Object?> get props => [hexColor];
+  List<Object?> get props => [color];
 }
 
 final class CustomThemeAccentColorChanged extends CustomThemeFormEvent {
-  final String hexColor;
+  final RgbaColor color;
 
-  const CustomThemeAccentColorChanged(this.hexColor);
+  const CustomThemeAccentColorChanged(this.color);
 
   @override
-  List<Object?> get props => [hexColor];
+  List<Object?> get props => [color];
 }
 
-/// Fired when the user picks a font from the fixed font list on the
-/// Custom Theme Screen.
 final class CustomThemeFontChanged extends CustomThemeFormEvent {
   final String fontFamily;
 
@@ -56,15 +80,9 @@ final class CustomThemeFontChanged extends CustomThemeFormEvent {
   List<Object?> get props => [fontFamily];
 }
 
-/// Fired when the user picks a header image from the gallery. [imagePath]
-/// is always non-null when fired from the picker — image_picker returning
-/// null (user cancelled) means the bloc simply doesn't dispatch this
-/// event at all, so the existing selection is left untouched.
-///
-/// To explicitly REMOVE an already-picked image, use
-/// [CustomThemeHeaderImageCleared] instead — a null [imagePath] here
-/// would be indistinguishable from "no change" under the state's
-/// `copyWith` semantics.
+/// [imagePath] is the final, already-cropped (3600x1200) image file
+/// path — cropping happens in the UI layer (image_cropper) before this
+/// event is dispatched.
 final class CustomThemeHeaderImagePicked extends CustomThemeFormEvent {
   final String imagePath;
 
@@ -74,15 +92,10 @@ final class CustomThemeHeaderImagePicked extends CustomThemeFormEvent {
   List<Object?> get props => [imagePath];
 }
 
-/// Fired when the user taps "remove image" to go back to a no-header-
-/// image theme.
 final class CustomThemeHeaderImageCleared extends CustomThemeFormEvent {
   const CustomThemeHeaderImageCleared();
 }
 
-/// Fired when the user taps Save. The bloc validates (non-empty name)
-/// and guards against duplicate submissions before calling
-/// [SaveCustomTheme].
 final class CustomThemeFormSubmitted extends CustomThemeFormEvent {
   const CustomThemeFormSubmitted();
 }

@@ -3,13 +3,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bubimo/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../../core/router/app_router.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';

@@ -1,9 +1,12 @@
-// lib/core/db/tables/app_settings_table.dart
+// lib/core/database/tables/app_settings_table.dart
 
 /// Schema definition for the `app_settings` table.
 ///
-/// Like `user_profile`, this is a single-row ("singleton") table holding
-/// all app-wide settings: reminders, theme selection, lock configuration.
+/// Single-row ("singleton") table holding all app-wide settings:
+/// reminders, theme selection, lock configuration. [columnThemeId]
+/// (already present in earlier schema versions) is reused as-is by the
+/// rebuilt Theme feature to persist the active theme's id — no new
+/// column/migration is needed for theme selection itself.
 class AppSettingsTable {
   AppSettingsTable._();
 
@@ -16,6 +19,11 @@ class AppSettingsTable {
   static const String columnId = 'id';
   static const String columnReminderTime = 'reminder_time';
   static const String columnReminderEnabled = 'reminder_enabled';
+
+  /// Stores the id of the currently active theme — either a built-in
+  /// id constant (see `BuiltInThemes`) or a `custom_themes.id` value.
+  /// `NULL` means no selection has been made yet, in which case the
+  /// Theme feature falls back to `BuiltInThemes.defaultBuiltInThemeId`.
   static const String columnThemeId = 'theme_id';
   static const String columnFontPreference = 'font_preference';
 
@@ -32,7 +40,7 @@ class AppSettingsTable {
   static const int defaultLockTimeoutMinutes = 1;
 
   static const String createTableSql = '''
-    CREATE TABLE $tableName (
+    CREATE TABLE IF NOT EXISTS $tableName (
       $columnId TEXT PRIMARY KEY,
       $columnReminderTime TEXT,
       $columnReminderEnabled INTEGER NOT NULL DEFAULT 0,

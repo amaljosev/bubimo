@@ -2,69 +2,91 @@
 
 import 'package:equatable/equatable.dart';
 
-/// Domain entity representing a single theme — either one of the static
-/// default presets, or a user-created custom theme.
+import 'rgba_color.dart';
+import 'theme_type.dart';
+
+/// Domain representation of a single theme — either one of the 4
+/// built-in themes (defined as static data, see `built_in_themes.dart`)
+/// or a user-created custom theme persisted in the `custom_themes`
+/// table.
 ///
-/// Colors are stored as hex strings (e.g. `'#6750A4'`) rather than
-/// Flutter's `Color` type, keeping the domain layer free of Flutter
-/// framework dependencies. The presentation layer converts to/from
-/// `Color` when building actual `ThemeData`.
-///
-/// [fontFamily] is a Google Fonts family name (e.g. `'Poppins'`) — kept
-/// as a plain string for the same reason colors are hex strings: the
-/// domain layer stays free of any font-loading package dependency. The
-/// presentation layer resolves it via `GoogleFonts.getFont`/
-/// `GoogleFonts.getTextTheme`.
-///
-/// [headerImagePath] is optional — themes with no header image (e.g.
-/// the original color-only presets, or a custom theme the user chose
-/// not to attach an image to) simply leave this null. Default preset
-/// images point at bundled assets (`assets/theme/...`); custom theme
-/// images point at file paths from `image_picker`.
+/// Colors are stored as [RgbaColor] value objects (not hex strings or
+/// Flutter [Color]s) so the domain layer stays framework-agnostic and
+/// the RGBO color picker can bind to channels directly. Conversion to a
+/// Flutter `ThemeData` happens at the boundary in `theme_mapper.dart`.
 class AppThemeData extends Equatable {
   final String id;
   final String name;
+  final ThemeType type;
+  final RgbaColor primaryColor;
+  final RgbaColor backgroundColor;
+  final RgbaColor accentColor;
 
-  /// True for user-created themes (stored in `custom_themes`), false
-  /// for the static built-in presets.
-  final bool isCustom;
-
-  final String primaryColor;
-  final String backgroundColor;
-  final String accentColor;
+  /// Google Fonts family name, e.g. `'Poppins'`, `'Caveat'`.
   final String fontFamily;
+
+  /// Path or asset key to the header image, when [ThemeType.supportsHeaderImage]
+  /// is true and the user/preset actually set one. `null` means no header
+  /// image, even if the type supports it.
+  ///
+  /// For built-in themes this is an asset path (`'assets/images/...'`).
+  /// For custom themes this is a file path on disk (cropped image saved
+  /// by `image_cropper`). [isHeaderImageAsset] disambiguates which.
   final String? headerImagePath;
+
+  /// True when [headerImagePath] refers to a bundled Flutter asset
+  /// (`Image.asset`) rather than a file on disk (`Image.file`). Always
+  /// false for custom themes.
+  final bool isHeaderImageAsset;
+
+  /// True for the 4 built-in themes — these can't be edited or deleted.
+  final bool isBuiltIn;
+
+  /// True for exactly one built-in theme: the one "Reset to Default"
+  /// applies.
+  final bool isDefault;
 
   const AppThemeData({
     required this.id,
     required this.name,
-    required this.isCustom,
+    required this.type,
     required this.primaryColor,
     required this.backgroundColor,
     required this.accentColor,
     required this.fontFamily,
     this.headerImagePath,
+    this.isHeaderImageAsset = false,
+    required this.isBuiltIn,
+    this.isDefault = false,
   });
 
   AppThemeData copyWith({
     String? id,
     String? name,
-    bool? isCustom,
-    String? primaryColor,
-    String? backgroundColor,
-    String? accentColor,
+    ThemeType? type,
+    RgbaColor? primaryColor,
+    RgbaColor? backgroundColor,
+    RgbaColor? accentColor,
     String? fontFamily,
     String? headerImagePath,
+    bool clearHeaderImage = false,
+    bool? isHeaderImageAsset,
+    bool? isBuiltIn,
+    bool? isDefault,
   }) {
     return AppThemeData(
       id: id ?? this.id,
       name: name ?? this.name,
-      isCustom: isCustom ?? this.isCustom,
+      type: type ?? this.type,
       primaryColor: primaryColor ?? this.primaryColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       accentColor: accentColor ?? this.accentColor,
       fontFamily: fontFamily ?? this.fontFamily,
-      headerImagePath: headerImagePath ?? this.headerImagePath,
+      headerImagePath:
+          clearHeaderImage ? null : (headerImagePath ?? this.headerImagePath),
+      isHeaderImageAsset: isHeaderImageAsset ?? this.isHeaderImageAsset,
+      isBuiltIn: isBuiltIn ?? this.isBuiltIn,
+      isDefault: isDefault ?? this.isDefault,
     );
   }
 
@@ -72,11 +94,14 @@ class AppThemeData extends Equatable {
   List<Object?> get props => [
         id,
         name,
-        isCustom,
+        type,
         primaryColor,
         backgroundColor,
         accentColor,
         fontFamily,
         headerImagePath,
+        isHeaderImageAsset,
+        isBuiltIn,
+        isDefault,
       ];
 }

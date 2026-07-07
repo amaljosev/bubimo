@@ -1,6 +1,7 @@
 // lib/main.dart
 
 import 'package:bubimo/core/config/secrets.dart';
+import 'package:bubimo/core/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,7 +10,6 @@ import 'package:flutter_quill/flutter_quill.dart'
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/di/injection.dart';
-import 'core/router/app_router.dart';
 import 'features/reminders/data/datasources/local_notification_service.dart';
 import 'features/theme/presentation/cubit/app_theme_cubit.dart';
 

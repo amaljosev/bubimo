@@ -1,19 +1,21 @@
 // lib/core/router/app_router.dart
 
+import 'package:bubimo/core/di/injection.dart';
+import 'package:bubimo/core/navigation/main_shell.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
-import '../../features/diary_entry/presentation/pages/diary_form_page.dart';
-import '../../features/favorites/presentation/pages/favorites_page.dart';
-import '../../features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
-import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
-import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_event.dart';
-import '../../features/reminders/presentation/pages/reminder_settings_page.dart';
-import '../../features/settings/presentation/pages/settings_page.dart';
-import '../../features/theme/presentation/pages/custom_theme_screen.dart';
-import '../di/injection.dart';
-import '../navigation/main_shell.dart';
+import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
+import '../../../features/diary_entry/presentation/pages/diary_form_page.dart';
+import '../../../features/favorites/presentation/pages/favorites_page.dart';
+import '../../../features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
+import '../../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
+import '../../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_event.dart';
+import '../../../features/reminders/presentation/pages/reminder_settings_page.dart';
+import '../../../features/settings/presentation/pages/settings_page.dart';
+import '../../../features/theme/domain/entities/app_theme_data.dart';
+import '../../../features/theme/presentation/pages/custom_theme_screen.dart';
+
 
 /// Centralized route path constants. Use these instead of raw strings
 /// when navigating, to avoid typos and make renames a one-line change.
@@ -44,7 +46,6 @@ class AppRoutes {
   // rely on the bottom nav) rather than pushing a route.
   //
   // Settings used to be a tab; it's now reached only by pushing from
-  // Profile (via its AppBar gear icon) — hence its own pushable route
   // here rather than a tab index.
 }
 
@@ -80,7 +81,14 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.customThemeScreen,
-      builder: (context, state) => const CustomThemeScreen(),
+      // `extra` carries the AppThemeData to edit when navigating here
+      // to EDIT an existing custom theme; omit it (push with no extra)
+      // to open in create mode. See CustomThemeScreen's `existingTheme`
+      // param.
+      builder: (context, state) {
+        final existingTheme = state.extra as AppThemeData?;
+        return CustomThemeScreen(existingTheme: existingTheme);
+      },
     ),
     GoRoute(
       path: AppRoutes.reminderSettings,

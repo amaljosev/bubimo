@@ -1,8 +1,9 @@
 // lib/core/di/injection.dart
 
 import 'package:bubimo/features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
-import 'package:bubimo/features/theme/%20data/datasources/theme_local_data_source.dart';
-import 'package:bubimo/features/theme/%20data/repositories/theme_repository_impl.dart';
+import 'package:bubimo/features/theme/data/datasources/theme_local_data_source.dart';
+import 'package:bubimo/features/theme/data/repositories/theme_repository_impl.dart';
+import 'package:bubimo/features/theme/domain/usecases/reset_to_default_theme.dart';
 import 'package:get_it/get_it.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -148,6 +149,9 @@ Future<void> configureDependencies() async {
   );
   getIt.registerLazySingleton(() => SelectTheme(getIt<ThemeRepository>()));
   getIt.registerLazySingleton(
+    () => ResetToDefaultTheme(getIt<ThemeRepository>()),
+  );
+  getIt.registerLazySingleton(
     () => SaveCustomTheme(getIt<ThemeRepository>()),
   );
   getIt.registerLazySingleton(
@@ -160,6 +164,7 @@ Future<void> configureDependencies() async {
     () => AppThemeCubit(
       getSelectedTheme: getIt<GetSelectedTheme>(),
       selectTheme: getIt<SelectTheme>(),
+      resetToDefaultTheme: getIt<ResetToDefaultTheme>(),
     ),
   );
 
@@ -167,6 +172,8 @@ Future<void> configureDependencies() async {
     () => ThemeListBloc(
       getAllThemes: getIt<GetAllThemes>(),
       getSelectedTheme: getIt<GetSelectedTheme>(),
+      deleteCustomTheme: getIt<DeleteCustomTheme>(),
+      appThemeCubit: getIt<AppThemeCubit>(),
     ),
   );
   getIt.registerFactory(

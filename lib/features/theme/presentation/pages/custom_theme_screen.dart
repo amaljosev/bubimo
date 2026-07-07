@@ -1,63 +1,60 @@
 // lib/features/theme/presentation/pages/custom_theme_screen.dart
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/built_in_themes.dart';
+import '../../domain/entities/app_theme_data.dart';
 import '../bloc/custom_theme_form/custom_theme_form_bloc.dart';
 import '../bloc/custom_theme_form/custom_theme_form_event.dart';
 import '../bloc/custom_theme_form/custom_theme_form_state.dart';
+import '../widgets/custom_theme_form/color_field_tile.dart';
+import '../widgets/custom_theme_form/font_picker_sheet.dart';
+import '../widgets/custom_theme_form/header_image_picker_field.dart';
+import '../widgets/custom_theme_form/home_preview_card.dart';
+import '../widgets/custom_theme_form/theme_name_field.dart';
 
-/// A fixed palette used for the primary/background/accent pickers below.
-/// No color-picker package is in the locked dependency list, so this
-/// avoids adding one — swap for a full color wheel later if desired.
-const List<String> _swatchPalette = [
-  '#6750A4', '#006874', '#9C4146', '#3A6A3E', '#4B5AA8',
-  '#B4436C', '#5C6BC0', '#00897B', '#C77800', '#455A64',
-  '#FFFBFE', '#F5FDFF', '#FFF8F6', '#F7FDF2', '#FAFBFF',
-  '#212121', '#37474F', '#4E342E', '#1B5E20', '#0D47A1',
-];
-
-/// Fixed list of selectable Google Fonts, mirroring the fixed-swatch-
-/// palette approach used for colors above — keeps the font picker a
-/// simple, curated list rather than pulling in a full font-browser
-/// package.
-const List<String> _fontChoices = [
-  'Poppins',
-  'Comfortaa',
-  'Caveat',
-  'Lora',
-  'Nunito',
-  'Merriweather',
-  'Quicksand',
-  'Playfair Display',
-];
-
-/// Lets the user build and save a custom theme: name, three color
-/// swatches, a font, and an optional header image from the gallery.
+/// Create/Edit Custom Theme screen.
 ///
-/// Note: header image picking uses the `image_picker` package, which
-/// needs to be added to pubspec.yaml — it isn't in the original locked
-/// dependency list.
+/// Pass [existingTheme] to open in EDIT mode (pre-fills every field and
+/// upserts the same theme id on save); omit it for CREATE mode, where
+/// every color field is initialized from
+/// [BuiltInThemes.defaultTheme]'s colors per spec.
+///
+/// The live Home Screen preview at the top is a pure function of the
+/// bloc's current [CustomThemeFormState] — it re-renders on every field
+/// change, and intentionally never touches [AppThemeCubit]/the app's
+/// real theme (see `HomePreviewCard`'s doc comment): saving here never
+/// auto-applies the theme.
 class CustomThemeScreen extends StatelessWidget {
-  const CustomThemeScreen({super.key});
+  final AppThemeData? existingTheme;
+
+  const CustomThemeScreen({super.key, this.existingTheme});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => getIt<CustomThemeFormBloc>(),
-      child: const _CustomThemeScreenView(),
+      create: (_) {
+        final bloc = getIt<CustomThemeFormBloc>();
+        final theme = existingTheme;
+        if (theme != null) {
+          bloc.add(CustomThemeFormInitializedForEdit(theme));
+        } else {
+          bloc.add(CustomThemeFormInitialized(BuiltInThemes.defaultTheme));
+        }
+        return bloc;
+      },
+      child: _CustomThemeScreenView(isEditing: existingTheme != null),
     );
   }
 }
 
 class _CustomThemeScreenView extends StatefulWidget {
-  const _CustomThemeScreenView();
+  final bool isEditing;
+
+  const _CustomThemeScreenView({required this.isEditing});
 
   @override
   State<_CustomThemeScreenView> createState() =>
@@ -65,41 +62,42 @@ class _CustomThemeScreenView extends StatefulWidget {
 }
 
 class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
-  final TextEditingController _nameController = TextEditingController();
-  final ImagePicker _imagePicker = ImagePicker();
+  late final TextEditingController _nameController;
+  final ScrollController _scrollController = ScrollController();
+  bool _initializedController = false;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickHeaderImage(BuildContext context) async {
-    final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-    // A null result means the user cancelled the picker — leave the
-    // existing selection untouched rather than dispatching anything.
+  void _scrollToPreview() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _openFontPicker(BuildContext context, String current) async {
+    final picked = await FontPickerSheet.show(context, selectedFont: current);
     if (picked != null && context.mounted) {
-      context
-          .read<CustomThemeFormBloc>()
-          .add(CustomThemeHeaderImagePicked(picked.path));
+      context.read<CustomThemeFormBloc>().add(CustomThemeFontChanged(picked));
     }
-  }
-
-  void _removeHeaderImage(BuildContext context) {
-    context.read<CustomThemeFormBloc>().add(
-          const CustomThemeHeaderImageCleared(),
-        );
-  }
-
-  Color _colorFromHex(String hex) {
-    final cleaned = hex.replaceFirst('#', '');
-    return Color(int.parse('FF$cleaned', radix: 16));
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<CustomThemeFormBloc, CustomThemeFormState>(
       listener: (context, state) {
+        if (!_initializedController &&
+            state.status != CustomThemeFormStatus.initial) {
+          _nameController = TextEditingController(text: state.name);
+          _initializedController = true;
+        }
+
         if (state.status == CustomThemeFormStatus.success) {
           context.pop(true);
         }
@@ -111,253 +109,109 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
         }
       },
       builder: (context, state) {
+        if (!_initializedController) {
+          // First build before the initializing event has been
+          // processed — render a lightweight loading state rather than
+          // constructing the controller with stale/default text.
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
         return Scaffold(
-          appBar: AppBar(title: const Text('Custom Theme')),
+          appBar: AppBar(
+            title: Text(widget.isEditing ? 'Edit Theme' : 'Create Custom Theme'),
+            actions: [
+              IconButton(
+                tooltip: 'Scroll to preview',
+                icon: const Icon(Icons.arrow_upward),
+                onPressed: _scrollToPreview,
+              ),
+            ],
+          ),
           body: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(
+              HomePreviewCard(
+                primaryColor: state.primaryColor,
+                backgroundColor: state.backgroundColor,
+                accentColor: state.accentColor,
+                fontFamily: state.fontFamily,
+                headerImagePath: state.headerImagePath,
+                themeName: state.name,
+              ),
+              const SizedBox(height: 24),
+              ThemeNameField(
                 controller: _nameController,
-                decoration: const InputDecoration(hintText: 'Theme name'),
                 onChanged: (value) => context
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemeNameChanged(value)),
               ),
               const SizedBox(height: 20),
-              _HeaderImagePicker(
+              HeaderImagePickerField(
                 imagePath: state.headerImagePath,
-                onTap: () => _pickHeaderImage(context),
-                onRemove: () => _removeHeaderImage(context),
+                onImagePicked: (path) => context
+                    .read<CustomThemeFormBloc>()
+                    .add(CustomThemeHeaderImagePicked(path)),
+                onImageRemoved: () => context
+                    .read<CustomThemeFormBloc>()
+                    .add(const CustomThemeHeaderImageCleared()),
               ),
               const SizedBox(height: 20),
-              _ColorSwatchSection(
+              ColorFieldTile(
                 label: 'Primary color',
-                selectedHex: state.primaryColor,
-                onSelected: (hex) => context
+                color: state.primaryColor,
+                onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
-                    .add(CustomThemePrimaryColorChanged(hex)),
-                colorFromHex: _colorFromHex,
+                    .add(CustomThemePrimaryColorChanged(color)),
               ),
-              const SizedBox(height: 16),
-              _ColorSwatchSection(
+              const Divider(height: 1),
+              ColorFieldTile(
                 label: 'Background color',
-                selectedHex: state.backgroundColor,
-                onSelected: (hex) => context
+                color: state.backgroundColor,
+                onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
-                    .add(CustomThemeBackgroundColorChanged(hex)),
-                colorFromHex: _colorFromHex,
+                    .add(CustomThemeBackgroundColorChanged(color)),
               ),
-              const SizedBox(height: 16),
-              _ColorSwatchSection(
+              const Divider(height: 1),
+              ColorFieldTile(
                 label: 'Accent color',
-                selectedHex: state.accentColor,
-                onSelected: (hex) => context
+                color: state.accentColor,
+                onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
-                    .add(CustomThemeAccentColorChanged(hex)),
-                colorFromHex: _colorFromHex,
+                    .add(CustomThemeAccentColorChanged(color)),
               ),
-              const SizedBox(height: 20),
-              _FontPickerSection(
-                selectedFont: state.fontFamily,
-                onSelected: (font) => context
-                    .read<CustomThemeFormBloc>()
-                    .add(CustomThemeFontChanged(font)),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Font'),
+                subtitle: Text(state.fontFamily),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openFontPicker(context, state.fontFamily),
               ),
               const SizedBox(height: 28),
               FilledButton(
-                // Guard against duplicate submissions: disable while a
-                // save is already in flight.
-                onPressed: state.isSubmitting
-                    ? null
-                    : () => context
+                onPressed: state.canSubmit
+                    ? () => context
                         .read<CustomThemeFormBloc>()
-                        .add(const CustomThemeFormSubmitted()),
+                        .add(const CustomThemeFormSubmitted())
+                    : null,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
                 child: state.isSubmitting
                     ? const SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Save Theme'),
+                    : Text(widget.isEditing ? 'Update Theme' : 'Save Theme'),
               ),
             ],
           ),
         );
       },
-    );
-  }
-}
-
-class _HeaderImagePicker extends StatelessWidget {
-  final String? imagePath;
-  final VoidCallback onTap;
-  final VoidCallback onRemove;
-
-  const _HeaderImagePicker({
-    required this.imagePath,
-    required this.onTap,
-    required this.onRemove,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        GestureDetector(
-          onTap: onTap,
-          child: Container(
-            height: 120,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-              image: imagePath != null
-                  ? DecorationImage(
-                      image: FileImage(File(imagePath!)),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: imagePath == null
-                ? const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.image_outlined, size: 32),
-                        SizedBox(height: 4),
-                        Text('Choose header image'),
-                      ],
-                    ),
-                  )
-                : null,
-          ),
-        ),
-        if (imagePath != null)
-          Positioned(
-            top: 6,
-            right: 6,
-            child: _RemoveImageButton(onPressed: onRemove),
-          ),
-      ],
-    );
-  }
-}
-
-class _RemoveImageButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _RemoveImageButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black54,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onPressed,
-        child: const Padding(
-          padding: EdgeInsets.all(6),
-          child: Icon(Icons.close, size: 18, color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-class _ColorSwatchSection extends StatelessWidget {
-  final String label;
-  final String selectedHex;
-  final ValueChanged<String> onSelected;
-  final Color Function(String) colorFromHex;
-
-  const _ColorSwatchSection({
-    required this.label,
-    required this.selectedHex,
-    required this.onSelected,
-    required this.colorFromHex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: _swatchPalette.map((hex) {
-            final isSelected = hex == selectedHex;
-            return GestureDetector(
-              onTap: () => onSelected(hex),
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: colorFromHex(hex),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.black12,
-                    width: isSelected ? 3 : 1,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-/// Lets the user pick a font from [_fontChoices]. Each option previews
-/// its own font live via `GoogleFonts.getFont`, so the choice is visible
-/// before saving rather than shown only as a plain label.
-class _FontPickerSection extends StatelessWidget {
-  final String selectedFont;
-  final ValueChanged<String> onSelected;
-
-  const _FontPickerSection({
-    required this.selectedFont,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Font', style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: _fontChoices.map((font) {
-            final isSelected = font == selectedFont;
-            return ChoiceChip(
-              label: Text(
-                font,
-                style: GoogleFonts.getFont(
-                  font,
-                  fontSize: 14,
-                  color: isSelected
-                      ? colorScheme.onPrimary
-                      : colorScheme.onSurface,
-                ),
-              ),
-              selected: isSelected,
-              onSelected: (_) => onSelected(font),
-              selectedColor: colorScheme.primary,
-            );
-          }).toList(),
-        ),
-      ],
     );
   }
 }

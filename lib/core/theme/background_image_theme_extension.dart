@@ -8,17 +8,26 @@ import 'package:flutter/material.dart';
 /// `ThemeExtension` is the current, non-deprecated Flutter mechanism for
 /// attaching custom theme data that flows through `Theme.of(context)`
 /// alongside `ColorScheme` — any widget can read
-/// `Theme.of(context).extension<BackgroundImageTheme>()?.imagePath`
-/// without needing it threaded through as an explicit parameter. Used
-/// today by Home's `SliverAppBar` background.
+/// `Theme.of(context).extension<BackgroundImageTheme>()` without needing
+/// it threaded through as an explicit parameter. Used by Home's
+/// `SliverAppBar` background.
+///
+/// [isAsset] distinguishes a bundled Flutter asset path (built-in
+/// themes Ocean/Sunset — render with `Image.asset`) from a file path on
+/// disk (custom themes with a picked+cropped header image — render
+/// with `Image.file`).
 class BackgroundImageTheme extends ThemeExtension<BackgroundImageTheme> {
   final String? imagePath;
+  final bool isAsset;
 
-  const BackgroundImageTheme({this.imagePath});
+  const BackgroundImageTheme({this.imagePath, this.isAsset = false});
 
   @override
-  BackgroundImageTheme copyWith({String? imagePath}) {
-    return BackgroundImageTheme(imagePath: imagePath ?? this.imagePath);
+  BackgroundImageTheme copyWith({String? imagePath, bool? isAsset}) {
+    return BackgroundImageTheme(
+      imagePath: imagePath ?? this.imagePath,
+      isAsset: isAsset ?? this.isAsset,
+    );
   }
 
   @override
@@ -28,8 +37,7 @@ class BackgroundImageTheme extends ThemeExtension<BackgroundImageTheme> {
   ) {
     if (other is! BackgroundImageTheme) return this;
     // Image paths aren't numeric/interpolatable — snap to the incoming
-    // extension's value past the halfway point of the transition, same
-    // behavior as the reference file this pattern was adapted from.
+    // extension's value past the halfway point of the transition.
     return t < 0.5 ? this : other;
   }
 }

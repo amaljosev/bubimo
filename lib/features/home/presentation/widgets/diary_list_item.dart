@@ -3,7 +3,6 @@
 import 'package:bubimo/features/diary_entry/domain/entities/diary_entry.dart';
 import 'package:flutter/material.dart';
 
-
 /// List tile for a single diary entry on the Home Screen.
 ///
 /// Lives under diary_entry/presentation/widgets/ (intentional deviation
@@ -26,14 +25,16 @@ class DiaryListItem extends StatelessWidget {
   final DiaryEntry entry;
   final VoidCallback onTap;
 
-  const DiaryListItem({
-    super.key,
-    required this.entry,
-    required this.onTap,
-  });
+  const DiaryListItem({super.key, required this.entry, required this.onTap});
 
   static const List<String> _weekdayAbbr = [
-    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
   ];
 
   @override
@@ -46,7 +47,7 @@ class DiaryListItem extends StatelessWidget {
         ? entry.preview!
         : (entry.content ?? '');
 
-    final cardColor = colorScheme.primaryContainer.withOpacity(0.5);
+    final cardColor = colorScheme.primaryContainer.withValues(alpha: 0.5);
     final onCardColor = colorScheme.onSurfaceVariant;
 
     return InkWell(
@@ -72,7 +73,7 @@ class DiaryListItem extends StatelessWidget {
                   Text(
                     _weekdayAbbr[entry.date.weekday - 1],
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withOpacity(0.6),
+                      color: colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],

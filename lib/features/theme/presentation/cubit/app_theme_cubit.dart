@@ -1,39 +1,48 @@
 // lib/features/theme/presentation/cubit/app_theme_cubit.dart
 
+import 'package:bubimo/core/theme/app_theme.dart';
+import 'package:bubimo/core/theme/theme_mapper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/error/failures.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../../core/theme/theme_mapper.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../../domain/usecases/get_selected_theme.dart';
+import '../../domain/usecases/reset_to_default_theme.dart';
 import '../../domain/usecases/select_theme.dart';
 
 /// Holds the app's CURRENT active [ThemeData] and is provided ABOVE
-/// `MaterialApp`, so any theme change rebuilds the whole app live —
-/// no restart required.
+/// `MaterialApp`, so any theme change rebuilds the whole app live — no
+/// restart required.
 ///
-/// This is registered as a lazy singleton in GetIt (not a factory),
-/// since it must persist for the app's entire lifetime.
+/// Registered as a lazy singleton in GetIt (not a factory), since it
+/// must persist for the app's entire lifetime.
 ///
 /// [ThemeData] construction (color scheme, font, header image
 /// extension) is delegated to [buildThemeData] in `theme_mapper.dart`
 /// rather than built inline here, so that conversion logic stays
 /// independently readable/testable and isn't duplicated.
+///
+/// Deliberately NOT used by the Theme Switcher's list items to render
+/// each theme's own font preview — those read [AppThemeData.fontFamily]
+/// directly per-item via `GoogleFonts.getFont`, independent of whichever
+/// theme is currently active here. See `built_in_theme_tile.dart` /
+/// `custom_theme_tile.dart`.
 class AppThemeCubit extends Cubit<ThemeData> {
   final GetSelectedTheme getSelectedTheme;
   final SelectTheme selectTheme;
+  final ResetToDefaultTheme resetToDefaultTheme;
 
   /// The domain data behind the current [state], kept alongside it so
-  /// screens (e.g. Theme Screen) can read which theme id is active
-  /// without a separate query.
+  /// screens (e.g. Theme Screen's "currently applied theme" header) can
+  /// read which theme id/name/font is active without a separate query.
   AppThemeData? currentTheme;
 
   AppThemeCubit({
     required this.getSelectedTheme,
     required this.selectTheme,
+    required this.resetToDefaultTheme,
   }) : super(AppTheme.light());
 
   /// Loads the user's previously selected theme. Call this once during
@@ -54,11 +63,26 @@ class AppThemeCubit extends Cubit<ThemeData> {
     );
   }
 
-  /// Persists [themeId] as the selection and applies it immediately.
+  /// Persists [themeId] as the selection and applies it immediately —
+  /// this is what the Theme Switcher's "Apply Theme" button (custom
+  /// themes) and instant-tap (built-in themes) both call.
   Future<Either<Failure, void>> changeTheme(String themeId) async {
     final selectResult = await selectTheme(themeId);
     if (selectResult.isLeft()) return selectResult;
 
+    return _refreshFromRepository();
+  }
+
+  /// Applies the default built-in theme — backs the "Reset to Default"
+  /// button on the Theme Switcher screen.
+  Future<Either<Failure, void>> resetToDefault() async {
+    final resetResult = await resetToDefaultTheme();
+    if (resetResult.isLeft()) return resetResult;
+
+    return _refreshFromRepository();
+  }
+
+  Future<Either<Failure, void>> _refreshFromRepository() async {
     final selectedResult = await getSelectedTheme();
     return selectedResult.match(
       (failure) => Left(failure),

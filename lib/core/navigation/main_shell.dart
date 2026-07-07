@@ -3,8 +3,6 @@
 import 'package:bubimo/features/profile/presentation/pages/profile_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-
 import '../../features/analytics/presentation/bloc/analytics/analytics_bloc.dart';
 import '../../features/analytics/presentation/bloc/analytics/analytics_event.dart';
 import '../../features/favorites/presentation/pages/favorites_page.dart';
@@ -17,7 +15,6 @@ import '../../features/theme/presentation/bloc/theme_list/theme_list_event.dart'
 import '../../features/theme/presentation/pages/theme_screen.dart';
 import '../../features/timeline/presentation/pages/timeline_page.dart';
 import '../di/injection.dart';
-import '../router/app_router.dart';
 
 /// App-wide navigation shell. Owns the bottom navigation bar and an
 /// [IndexedStack] of the five top-level tabs: Timeline, Favorites,
@@ -32,9 +29,8 @@ import '../router/app_router.dart';
 ///
 /// Every tab provides its own Scaffold/AppBar (Diary and Timeline use a
 /// collapsing SliverAppBar with the theme's header image; Favorites and
-/// Profile use a plain AppBar) — Themes is the only tab that still
-/// relies on a shell-level shared AppBar, since it needs the "Custom
-/// Theme" action button.
+/// Profile use a plain AppBar; Themes uses a Scaffold with a built-in
+/// TabBar for App Themes / Custom Themes).
 ///
 /// The Profile tab renders [ProfileAnalyticsScreen] — the combined
 /// Profile & Analytics screen — so it needs both a [ProfileCubit] and
@@ -76,7 +72,7 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _diaryListBloc = getIt<DiaryListBloc>()..add(const LoadDiaryEntries());
-    _themeListBloc = getIt<ThemeListBloc>()..add(const LoadThemes());
+    _themeListBloc = getIt<ThemeListBloc>()..add(const ThemeListLoaded());
     _profileCubit = getIt<ProfileCubit>()..loadProfile();
     _analyticsBloc = getIt<AnalyticsBloc>()..add(const LoadAnalytics());
   }
@@ -95,20 +91,14 @@ class _MainShellState extends State<MainShell> {
     setState(() => _currentIndex = index);
   }
 
-  /// Only the Themes tab (index 3) needs the shell's own AppBar — every
-  /// other tab renders its own (Timeline/Diary via SliverAppBar,
-  /// Favorites/Profile via a plain AppBar).
-  bool get _needsSharedAppBar => _currentIndex == 3;
+  // Every tab now renders its own Scaffold/AppBar — including Themes
+  // (index 3), which owns a full Scaffold with its TabBar (App Themes /
+  // Custom Themes) built directly into `ThemeScreen`. There is no
+  // shell-level shared AppBar anymore.
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _needsSharedAppBar
-          ? AppBar(
-              title: Text(_tabs[_currentIndex].label),
-              actions: _buildAppBarActions(context),
-            )
-          : null,
       body: IndexedStack(
         index: _currentIndex,
         children: [
@@ -150,30 +140,6 @@ class _MainShellState extends State<MainShell> {
         ],
       ),
     );
-  }
-
-  /// Tab-specific AppBar actions. Only the Themes tab currently needs one
-  /// (the "Custom Theme" action, moved here from its old FAB).
-  List<Widget>? _buildAppBarActions(BuildContext context) {
-    switch (_currentIndex) {
-      case 3: // Themes tab
-        return [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Custom Theme',
-            onPressed: () => _openCustomTheme(context),
-          ),
-        ];
-      default:
-        return null;
-    }
-  }
-
-  Future<void> _openCustomTheme(BuildContext context) async {
-    final result = await context.push<bool>(AppRoutes.customThemeScreen);
-    if (result == true && mounted) {
-      _themeListBloc.add(const LoadThemes());
-    }
   }
 }
 

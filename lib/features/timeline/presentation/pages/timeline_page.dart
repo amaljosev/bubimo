@@ -1,8 +1,6 @@
 // lib/features/timeline/presentation/pages/timeline_page.dart
 
 import 'dart:io';
-
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -11,7 +9,6 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/background_image_theme_extension.dart';
 import '../../../diary_entry/domain/entities/diary_entry.dart';
-import '../../../diary_entry/domain/entities/mood.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_bloc.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_event.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_state.dart';
