@@ -1,5 +1,6 @@
 // lib/features/diary_entry/presentation/widgets/diary_list_item.dart
 
+import 'package:bubimo/core/utils/date_utils.dart';
 import 'package:bubimo/features/diary_entry/domain/entities/diary_entry.dart';
 import 'package:flutter/material.dart';
 
@@ -38,16 +39,6 @@ class DiaryListItem extends StatelessWidget {
     required this.onTap,
     this.showDateColumn = true,
   });
-
-  static const List<String> _weekdayAbbr = [
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun',
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -133,14 +124,14 @@ class DiaryListItem extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      entry.date.day.toString().padLeft(2, '0'),
+                      AppDateUtils.dayOfMonthPadded(entry.date),
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _weekdayAbbr[entry.date.weekday - 1],
+                      AppDateUtils.weekdayNameShort(entry.date.weekday),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurface.withValues(alpha: 0.6),
                       ),

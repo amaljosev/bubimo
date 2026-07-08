@@ -1,9 +1,9 @@
 // lib/features/diary_entry/presentation/pages/diary_entry_view_page.dart
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:bubimo/core/router/app_router.dart';
+import 'package:bubimo/core/utils/background_image_utils.dart';
+import 'package:bubimo/core/utils/overlay_tint_utils.dart';
+import 'package:bubimo/core/utils/quill_document_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
@@ -87,28 +87,12 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
         _entry = entry;
         _viewController?.dispose();
         _viewController = quill.QuillController(
-          document: _documentFromContent(entry.content ?? ''),
+          document: QuillDocumentUtils.documentFromContent(entry.content ?? ''),
           selection: const TextSelection.collapsed(offset: 0),
           readOnly: true,
         );
       }),
     );
-  }
-
-  /// Parses stored Quill Delta JSON into a [quill.Document]. Falls back
-  /// to a blank/plain-text document if it isn't valid Delta JSON —
-  /// covers legacy plain-text entries saved before the rich editor
-  /// existed.
-  quill.Document _documentFromContent(String rawContent) {
-    final trimmed = rawContent.trim();
-    if (trimmed.isEmpty) return quill.Document();
-
-    try {
-      final decoded = jsonDecode(trimmed);
-      return quill.Document.fromJson(decoded as List);
-    } catch (_) {
-      return quill.Document()..insert(0, trimmed);
-    }
   }
 
   Future<void> _toggleFavorite() async {
@@ -175,41 +159,6 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     );
   }
 
-  /// Resolves which background image to actually render, per the same
-  /// precedence rule used on the form page: gallery > preset-local >
-  /// preset-remote (cached). Mirrors
-  /// `_DiaryFormViewState._resolveBackgroundImage` — kept in sync with
-  /// that method since both read the same three fields off
-  /// [DiaryEntry].
-  ///
-  /// This screen previously never called anything like this at all —
-  /// `_buildBody()` built the title/date/editor but never read
-  /// `bgImagePath` / `bgLocalPath` / `bgGalleryImagePath` off the
-  /// entry, so a background chosen in the form was saved correctly but
-  /// simply had nowhere to render once you came back to view the
-  /// entry. That's the "background not loading" bug — it wasn't a
-  /// loading failure, it was never wired up on this screen.
-  ImageProvider? _resolveBackgroundImage(DiaryEntry entry) {
-    if (entry.bgGalleryImagePath != null) {
-      return FileImage(File(entry.bgGalleryImagePath!));
-    }
-    if (entry.bgImagePath != null) {
-      return AssetImage(entry.bgImagePath!);
-    }
-    if (entry.bgLocalPath != null) {
-      return FileImage(File(entry.bgLocalPath!));
-    }
-    return null;
-  }
-
-  /// Resolves the tint color to blend over the background image from
-  /// the entry's stored color name ('white' or 'black'), mirroring
-  /// `_DiaryFormViewState._resolveOverlayTintColor` — kept in sync with
-  /// that method since both read `entry.bgOverlayColor`.
-  Color _resolveOverlayTintColor(DiaryEntry entry) {
-    return entry.bgOverlayColor == 'black' ? Colors.black : Colors.white;
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -269,7 +218,11 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     }
 
     final entry = _entry!;
-    final backgroundImage = _resolveBackgroundImage(entry);
+    final backgroundImage = BackgroundImageUtils.resolveProvider(
+      bgGalleryImagePath: entry.bgGalleryImagePath,
+      bgImagePath: entry.bgImagePath,
+      bgLocalPath: entry.bgLocalPath,
+    );
 
     return Container(
       // Same lightened overlay treatment as the form page, so text and
@@ -280,15 +233,9 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
               image: DecorationImage(
                 image: backgroundImage,
                 fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(
-                  _resolveOverlayTintColor(entry)
-                      .withValues(alpha: entry.bgOverlayOpacity),
-                  // Same rationale as the form page: 'lighten' is a
-                  // no-op for a black tint, so darken/lighten must
-                  // match the chosen color.
-                  entry.bgOverlayColor == 'black'
-                      ? BlendMode.darken
-                      : BlendMode.lighten,
+                colorFilter: OverlayTintUtils.resolveColorFilter(
+                  bgOverlayColor: entry.bgOverlayColor,
+                  opacity: entry.bgOverlayOpacity,
                 ),
               ),
             )

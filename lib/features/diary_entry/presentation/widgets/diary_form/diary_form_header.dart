@@ -1,0 +1,156 @@
+// lib/features/diary_entry/presentation/widgets/diary_form/diary_form_header.dart
+
+import 'package:flutter/material.dart';
+
+import '../../../../../core/utils/date_utils.dart';
+import '../../../domain/entities/mood.dart';
+
+/// Date on the left (big day-number + weekday + month layout) and the
+/// mood avatar on the right, which opens the mood popover speech-bubble
+/// anchored to itself.
+///
+/// Extracted from `_DiaryFormViewState._buildHeaderRow` to keep the
+/// form page's state class focused on orchestration rather than
+/// widget-building.
+class DiaryFormHeaderRow extends StatelessWidget {
+  final DateTime date;
+  final Mood? mood;
+  final GlobalKey moodAvatarKey;
+  final VoidCallback onDateTap;
+  final VoidCallback onMoodTap;
+
+  const DiaryFormHeaderRow({
+    super.key,
+    required this.date,
+    required this.mood,
+    required this.moodAvatarKey,
+    required this.onDateTap,
+    required this.onMoodTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: onDateTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppDateUtils.formatDD(date),
+                  style: theme.textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      AppDateUtils.formatEE(date),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      AppDateUtils.formatMMMYyyy(date),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary
+                            .withValues(alpha: 0.55),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        GestureDetector(
+          key: moodAvatarKey,
+          onTap: onMoodTap,
+          child: CircleAvatar(
+            radius: 26,
+            backgroundColor:
+                theme.colorScheme.primary.withValues(alpha: 0.12),
+            child: mood != null
+                ? Text(
+                    mood!.emoji,
+                    style: const TextStyle(fontSize: 26),
+                  )
+                : Icon(
+                    Icons.sentiment_satisfied_alt_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 26,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Minimal title field: no border, no fill, no visible container of
+/// any kind — just the text itself with a soft hint, matching the
+/// unboxed, journal-page feel of the description area below it.
+///
+/// Extracted from `_DiaryFormViewState._buildTitleField`.
+class DiaryFormTitleField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final FocusNode nextFocusNode;
+  final ValueChanged<String> onChanged;
+
+  const DiaryFormTitleField({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.nextFocusNode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      maxLines: null,
+      textInputAction: TextInputAction.next,
+      onTapOutside: (_) => focusNode.unfocus(),
+      onSubmitted: (_) => nextFocusNode.requestFocus(),
+      cursorColor: theme.colorScheme.primary,
+      style: theme.textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: theme.colorScheme.onSurface,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Title',
+        hintStyle: theme.textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+        ),
+        filled: false,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        isDense: true,
+        isCollapsed: true,
+        contentPadding: EdgeInsets.zero,
+      ),
+      onChanged: onChanged,
+    );
+  }
+}

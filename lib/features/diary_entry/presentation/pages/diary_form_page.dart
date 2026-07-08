@@ -1,9 +1,13 @@
 // lib/features/diary_entry/presentation/pages/diary_form_page.dart
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
+
+import 'package:bubimo/core/utils/background_image_utils.dart';
+import 'package:bubimo/core/utils/overlay_tint_utils.dart';
+import 'package:bubimo/core/utils/quill_document_utils.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/diary_bottom_toolbar.dart';
+import 'package:bubimo/features/diary_entry/presentation/widgets/diary_form/diary_form_header.dart';
+import 'package:bubimo/features/diary_entry/presentation/widgets/diary_form/diary_form_overlay_settings_sheet.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/font_picker.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/mood_popover.dart';
 import 'package:bubimo/features/diary_entry/presentation/widgets/overlay/overlay_layer.dart';
@@ -15,7 +19,6 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart' as intl;
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../../../core/widgets/error_screen.dart';
@@ -112,7 +115,7 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
   }
 
   void _initQuillController(String rawContent) {
-    final document = _documentFromContent(rawContent);
+    final document = QuillDocumentUtils.documentFromContent(rawContent);
     _quillController = quill.QuillController(
       document: document,
       selection: const TextSelection.collapsed(offset: 0),
@@ -120,25 +123,8 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
     _quillController!.addListener(_onQuillContentChanged);
   }
 
-  /// Parses stored Quill Delta JSON into a [quill.Document]. Falls back
-  /// to a blank document for empty content, or a single-line document
-  /// wrapping the raw text if it isn't valid Delta JSON (covers legacy
-  /// plain-text entries saved before the rich editor existed).
-  quill.Document _documentFromContent(String rawContent) {
-    final trimmed = rawContent.trim();
-    if (trimmed.isEmpty) return quill.Document();
-
-    try {
-      final decoded = jsonDecode(trimmed);
-      return quill.Document.fromJson(decoded as List);
-    } catch (_) {
-      return quill.Document()..insert(0, trimmed);
-    }
-  }
-
   void _onQuillContentChanged() {
-    final deltaJson =
-        jsonEncode(_quillController!.document.toDelta().toJson());
+    final deltaJson = QuillDocumentUtils.contentFromController(_quillController!);
     _bloc.add(DiaryFormContentChanged(deltaJson));
   }
 
@@ -504,14 +490,6 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
   bool _hasOverlaySelection(DiaryFormState state) =>
       state.selectedOverlayImageId != null || state.selectedStickerId != null;
 
-  /// Resolves the tint color to blend over the background image from
-  /// the state's stored color name ('white' or 'black'). Falls back to
-  /// white for any unrecognized value rather than throwing, since this
-  /// is display-only and a bad value shouldn't crash the form.
-  Color _resolveOverlayTintColor(DiaryFormState state) {
-    return state.bgOverlayColor == 'black' ? Colors.black : Colors.white;
-  }
-
   /// Opens the bottom sheet for adjusting the background overlay tint's
   /// opacity and color. Only meaningful when a background image is set,
   /// so the caller only shows the settings icon in that case.
@@ -524,27 +502,10 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
       builder: (sheetContext) {
         return BlocProvider.value(
           value: bloc,
-          child: const _OverlaySettingsSheet(),
+          child: const DiaryFormOverlaySettingsSheet(),
         );
       },
     );
-  }
-
-  /// Resolves which background image to actually render, per the app's
-  /// precedence rule: gallery > preset-local > preset-remote (cached).
-  /// Solid `bgColor` isn't set by this milestone's picker, so it isn't
-  /// resolved here.
-  ImageProvider? _resolveBackgroundImage(DiaryFormState state) {
-    if (state.bgGalleryImagePath != null) {
-      return FileImage(File(state.bgGalleryImagePath!));
-    }
-    if (state.bgImagePath != null) {
-      return AssetImage(state.bgImagePath!);
-    }
-    if (state.bgLocalPath != null) {
-      return FileImage(File(state.bgLocalPath!));
-    }
-    return null;
   }
 
   @override
@@ -597,7 +558,11 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
           return const Scaffold(body: LoadingScreen());
         }
 
-        final backgroundImage = _resolveBackgroundImage(state);
+        final backgroundImage = BackgroundImageUtils.resolveProvider(
+          bgGalleryImagePath: state.bgGalleryImagePath,
+          bgImagePath: state.bgImagePath,
+          bgLocalPath: state.bgLocalPath,
+        );
 
         // Save requires at least some content — either a title or a
         // non-empty description — mirroring the reference app's rule.
@@ -653,16 +618,9 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
                     image: DecorationImage(
                       image: backgroundImage,
                       fit: BoxFit.cover,
-                      colorFilter: ColorFilter.mode(
-                        _resolveOverlayTintColor(state)
-                            .withValues(alpha: state.bgOverlayOpacity),
-                        // 'lighten' only makes sense for a white tint
-                        // (it can only brighten, never darken); a black
-                        // tint needs 'darken' to actually dim the image
-                        // instead of being a no-op.
-                        state.bgOverlayColor == 'black'
-                            ? BlendMode.darken
-                            : BlendMode.lighten,
+                      colorFilter: OverlayTintUtils.resolveColorFilter(
+                        bgOverlayColor: state.bgOverlayColor,
+                        opacity: state.bgOverlayOpacity,
                       ),
                     ),
                   )
@@ -681,9 +639,23 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                     child: Column(
                       children: [
-                        _buildHeaderRow(context, state),
+                        DiaryFormHeaderRow(
+                          date: state.date,
+                          mood: state.mood,
+                          moodAvatarKey: _moodAvatarKey,
+                          onDateTap: () => _pickDate(context, state.date),
+                          onMoodTap: () =>
+                              _openMoodPopover(context, state.mood),
+                        ),
                         const SizedBox(height: 20),
-                        _buildTitleField(context, state),
+                        DiaryFormTitleField(
+                          controller: _titleController,
+                          focusNode: _titleFocusNode,
+                          nextFocusNode: _descriptionFocusNode,
+                          onChanged: (value) => context
+                              .read<DiaryFormBloc>()
+                              .add(DiaryFormTitleChanged(value)),
+                        ),
                         const SizedBox(height: 12),
                       ],
                     ),
@@ -776,317 +748,6 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
           ),
         );
       },
-    );
-  }
-
-  /// Date on the left (matches the reference's big day-number + weekday
-  /// + month layout) and the mood avatar on the right, which opens the
-  /// [showMoodPopover] speech-bubble popup anchored to itself.
-  Widget _buildHeaderRow(BuildContext context, DiaryFormState state) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () => _pickDate(context, state.date),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  intl.DateFormat('dd').format(state.date),
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                Row(
-                  children: [
-                    Text(
-                      intl.DateFormat('EE').format(state.date),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      intl.DateFormat('MMM, yyyy').format(state.date),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.primary
-                            .withValues(alpha: 0.55),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        GestureDetector(
-          key: _moodAvatarKey,
-          onTap: () => _openMoodPopover(context, state.mood),
-          child: CircleAvatar(
-            radius: 26,
-            backgroundColor:
-                theme.colorScheme.primary.withValues(alpha: 0.12),
-            child: state.mood != null
-                ? Text(
-                    state.mood!.emoji,
-                    style: const TextStyle(fontSize: 26),
-                  )
-                : Icon(
-                    Icons.sentiment_satisfied_alt_outlined,
-                    color: theme.colorScheme.primary,
-                    size: 26,
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Minimal title field: no border, no fill, no visible container of
-  /// any kind — just the text itself with a soft hint, matching the
-  /// unboxed, journal-page feel of the description area below it.
-  Widget _buildTitleField(BuildContext context, DiaryFormState state) {
-    final theme = Theme.of(context);
-    return TextField(
-      controller: _titleController,
-      focusNode: _titleFocusNode,
-      maxLines: null,
-      textInputAction: TextInputAction.next,
-      onTapOutside: (_) => _titleFocusNode.unfocus(),
-      onSubmitted: (_) => _descriptionFocusNode.requestFocus(),
-      cursorColor: theme.colorScheme.primary,
-      style: theme.textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w800,
-        color: theme.colorScheme.onSurface,
-      ),
-      decoration: InputDecoration(
-        hintText: 'Title',
-        hintStyle: theme.textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-        ),
-        filled: false,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        disabledBorder: InputBorder.none,
-        errorBorder: InputBorder.none,
-        isDense: true,
-        isCollapsed: true,
-        contentPadding: EdgeInsets.zero,
-      ),
-      onChanged: (value) =>
-          context.read<DiaryFormBloc>().add(DiaryFormTitleChanged(value)),
-    );
-  }
-}
-
-/// Bottom sheet for adjusting the background overlay tint's opacity and
-/// color for the current entry only. Reads its initial values from
-/// [DiaryFormBloc]'s current state (via the [BlocProvider.value] the
-/// caller wraps this in) and dispatches
-/// [DiaryFormOverlayOpacityChanged] live as the slider/toggle move, so
-/// the form's background preview updates in real time behind the sheet.
-///
-/// Local widget state ([_opacity]/[_color]) mirrors the bloc for
-/// immediate, jank-free slider feedback — dispatching straight from
-/// `onChanged` would work too, but keeping local state avoids a full
-/// bloc round-trip on every drag frame.
-class _OverlaySettingsSheet extends StatefulWidget {
-  const _OverlaySettingsSheet();
-
-  @override
-  State<_OverlaySettingsSheet> createState() => _OverlaySettingsSheetState();
-}
-
-class _OverlaySettingsSheetState extends State<_OverlaySettingsSheet> {
-  late double _opacity;
-  late String _color;
-
-  @override
-  void initState() {
-    super.initState();
-    final state = context.read<DiaryFormBloc>().state;
-    _opacity = state.bgOverlayOpacity;
-    _color = state.bgOverlayColor;
-  }
-
-  void _apply() {
-    context.read<DiaryFormBloc>().add(
-          DiaryFormOverlayOpacityChanged(opacity: _opacity, color: _color),
-        );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        decoration: BoxDecoration(
-          color: isDark ? theme.colorScheme.surface : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            Text(
-              'Background Overlay',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Adjust the tint over your background photo so text '
-              'stays readable.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _TintChoiceChip(
-                    label: 'Light',
-                    icon: Icons.light_mode_outlined,
-                    selected: _color == 'white',
-                    onTap: () {
-                      setState(() => _color = 'white');
-                      _apply();
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TintChoiceChip(
-                    label: 'Dark',
-                    icon: Icons.dark_mode_outlined,
-                    selected: _color == 'black',
-                    onTap: () {
-                      setState(() => _color = 'black');
-                      _apply();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  'Opacity',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${(_opacity * 100).round()}%',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-            Slider(
-              value: _opacity,
-              // 0.05 floor rather than 0 — an overlay at 0% opacity is
-              // visually indistinguishable from "no overlay control
-              // exists", which reads as broken (the icon that opened
-              // this sheet already implies an overlay is present).
-              min: 0.05,
-              max: 1.0,
-              onChanged: (value) {
-                setState(() => _opacity = value);
-                _apply();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Selectable chip for choosing the overlay tint color, styled to match
-/// this form's other pickers (font, background) rather than a stock
-/// [ChoiceChip], for a consistent rounded-pill look across the sheet.
-class _TintChoiceChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TintChoiceChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected
-          ? theme.colorScheme.primary.withValues(alpha: 0.12)
-          : theme.colorScheme.onSurface.withValues(alpha: 0.05),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

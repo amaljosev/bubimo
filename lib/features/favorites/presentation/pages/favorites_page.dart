@@ -1,26 +1,30 @@
 // lib/features/favorites/presentation/pages/favorites_page.dart
 
 import 'package:bubimo/core/router/app_router.dart';
+import 'package:bubimo/core/utils/date_utils.dart';
+import 'package:bubimo/core/utils/entry_grouping_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
+import '../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../../home/presentation/widgets/diary_list_item.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_bloc.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_event.dart';
 import '../../../home/presentation/bloc/diary_list/diary_list_state.dart';
-import '../../../home/presentation/widgets/diary_list_item.dart';
-import '../../../shared/presentation/widgets/empty_state_widget.dart';
 
-/// Dedicated Favorites screen — every entry with `isFavorite == true`,
-/// pulled from the same shared [DiaryListBloc] Diary and Timeline use
-/// (no separate favorites fetch/bloc). Reachable both as a bottom-nav
-/// tab and via the favorite-count pill on [TimelinePage]'s header.
+/// Favorites screen with a timeline-style, month-grouped layout.
+/// Features:
+/// - Minimal, flat app bar (matches the Diary tab's plain title style)
+/// - Collapsible month sections with an entry-count pill
+/// - Per-day timeline with a connecting line + circular date marker
+/// - Entries rendered with the shared [DiaryListItem] (same look/feel
+///   as Diary and Timeline), with its own date column hidden since the
+///   timeline marker already shows the date once per day
 ///
-/// Entries are grouped by day the same way [HomePage] groups them: one
-/// date tile per day, with every favorite from that day listed beneath
-/// it inside a single shared card — the date is never repeated per
-/// entry.
+/// Data comes from the same shared [DiaryListBloc] Diary and Timeline
+/// use — no separate favorites fetch/bloc.
 class FavoritesPage extends StatelessWidget {
   const FavoritesPage({super.key});
 
@@ -28,15 +32,6 @@ class FavoritesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const _FavoritesView();
   }
-}
-
-/// One calendar day's worth of favorite entries, plus the day itself —
-/// mirrors [HomePage]'s `_DayGroup`.
-class _DayGroup {
-  const _DayGroup({required this.date, required this.entries});
-
-  final DateTime date;
-  final List<dynamic> entries;
 }
 
 class _FavoritesView extends StatefulWidget {
@@ -47,11 +42,10 @@ class _FavoritesView extends StatefulWidget {
 }
 
 class _FavoritesViewState extends State<_FavoritesView> {
-  static const _monthAbbreviations = [
-    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
-  ];
-  static const double _dateTileWidth = 56;
+  // Month expansion state, keyed by "yyyy-mm" (see [AppDateUtils.monthKey]).
+  // Lives here (not in the stateless section widget) so it survives
+  // list rebuilds triggered by BlocBuilder.
+  final Map<String, bool> _expandedMonths = {};
 
   Future<void> _openEntry(BuildContext context, String entryId) async {
     final result = await context.push<bool>(
@@ -75,59 +69,6 @@ class _FavoritesViewState extends State<_FavoritesView> {
     return Future<void>.delayed(const Duration(milliseconds: 400));
   }
 
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  /// Groups favorite entries into consecutive same-day buckets,
-  /// preserving [entries]'s original ordering. Assumes entries arrive
-  /// already sorted by date (as [DiaryListBloc] provides them) — this
-  /// does NOT re-sort, it only collapses adjacent same-day entries into
-  /// one group.
-  List<_DayGroup> _groupByDay(List<dynamic> entries) {
-    final groups = <_DayGroup>[];
-
-    for (final entry in entries) {
-      final entryDate = entry.date as DateTime;
-      final dayOnly = DateTime(entryDate.year, entryDate.month, entryDate.day);
-
-      if (groups.isNotEmpty && _isSameDay(groups.last.date, dayOnly)) {
-        groups.last.entries.add(entry);
-      } else {
-        groups.add(_DayGroup(date: dayOnly, entries: [entry]));
-      }
-    }
-
-    return groups;
-  }
-
-  Widget _dateTile(BuildContext context, DateTime date) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      width: _dateTileWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _monthAbbreviations[date.month - 1],
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              letterSpacing: 0.5,
-            ),
-          ),
-          Text(
-            date.day.toString().padLeft(2, '0'),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,19 +79,9 @@ class _FavoritesViewState extends State<_FavoritesView> {
             parent: BouncingScrollPhysics(),
           ),
           slivers: [
-            // App bar only cares about the favorites *count*, not the
-            // full entries list identity, so it gets its own narrow
-            // BlocBuilder with buildWhen.
-            BlocBuilder<DiaryListBloc, DiaryListState>(
-              buildWhen: (previous, current) =>
-                  _favoritesCount(previous.entries) !=
-                  _favoritesCount(current.entries),
-              builder: (context, state) {
-                return _FavoritesSliverAppBar(
-                  count: _favoritesCount(state.entries),
-                );
-              },
-            ),
+            // Static, minimal app bar — no state dependency at all, so
+            // it is built once and never rebuilds with the list below.
+            const _FavoritesSliverAppBar(),
             BlocBuilder<DiaryListBloc, DiaryListState>(
               buildWhen: (previous, current) =>
                   previous.status != current.status ||
@@ -175,38 +106,53 @@ class _FavoritesViewState extends State<_FavoritesView> {
                   case DiaryListStatus.loaded:
                     final favorites = state.entries
                         .where((e) => e.isFavorite)
-                        .toList(growable: false);
+                        .toList(growable: false)
+                      ..sort((a, b) => b.date.compareTo(a.date));
 
                     if (favorites.isEmpty) {
                       return SliverFillRemaining(
-                        child: EmptyStateWidget(
-                          isFavoritesFilter: true,
+                        child: _ModernEmptyState(
                           onCreatePressed: () => _openCreateEntry(context),
                         ),
                       );
                     }
 
-                    final dayGroups = _groupByDay(favorites);
+                    final groupedData =
+                        EntryGroupingUtils.groupByMonthAndDay<DiaryEntry>(
+                      favorites,
+                      (entry) => entry.date,
+                    );
+                    // Ensure every month bucket has a default expanded
+                    // state the first time it's seen, then sort newest
+                    // month first.
+                    for (final monthKey in groupedData.keys) {
+                      _expandedMonths.putIfAbsent(monthKey, () => true);
+                    }
+                    final monthKeys = groupedData.keys.toList()
+                      ..sort((a, b) => b.compareTo(a));
 
                     return SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      sliver: SliverList.separated(
-                        itemCount: dayGroups.length,
-                        // Keying by the group's day lets Flutter reuse
-                        // existing elements for unaffected days when a
-                        // single entry is un-favorited elsewhere in the
-                        // list, instead of rebuilding every group.
-                        itemBuilder: (context, groupIndex) {
-                          final group = dayGroups[groupIndex];
-                          return _FavoriteDayGroupTile(
-                            key: ValueKey(group.date),
-                            date: group.date,
-                            entries: group.entries,
-                            dateTileBuilder: _dateTile,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      sliver: SliverList.builder(
+                        itemCount: monthKeys.length,
+                        itemBuilder: (context, index) {
+                          final monthKey = monthKeys[index];
+                          final monthData = groupedData[monthKey]!;
+                          final isExpanded = _expandedMonths[monthKey] ?? true;
+
+                          return _MonthSection(
+                            key: ValueKey(monthKey),
+                            monthLabel: AppDateUtils.monthKeyLabel(monthKey),
+                            daysData: monthData,
+                            isExpanded: isExpanded,
+                            onToggle: () {
+                              setState(() {
+                                _expandedMonths[monthKey] = !isExpanded;
+                              });
+                            },
                             onEntryTap: (id) => _openEntry(context, id),
                           );
                         },
-                        separatorBuilder: (_, _) => const SizedBox(height: 16),
                       ),
                     );
                 }
@@ -217,85 +163,329 @@ class _FavoritesViewState extends State<_FavoritesView> {
       ),
     );
   }
-
-  static int _favoritesCount(List<dynamic> entries) =>
-      entries.where((e) => e.isFavorite as bool).length;
 }
 
-/// Extracted so the sliver app bar is a stable, const-constructible widget
-/// that only rebuilds when [count] changes — never on unrelated list state.
+/// Minimal sliver app bar — plain flat title, matching the original
+/// (first) design. Kept as its own widget so it never rebuilds along
+/// with the list below it.
 class _FavoritesSliverAppBar extends StatelessWidget {
-  const _FavoritesSliverAppBar({required this.count});
-
-  final int count;
+  const _FavoritesSliverAppBar();
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return SliverAppBar(
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
-            centerTitle: true,
-            automaticallyImplyLeading: false,
-            elevation: 0,
-            title: const Text('Favorites'),
-          );
+      backgroundColor: colorScheme.surface,
+      foregroundColor: colorScheme.onSurface,
+      centerTitle: true,
+      // Favorites is no longer a bottom-nav tab — it's reached by
+      // pushing this route (e.g. from Timeline), so it needs the
+      // default back button to return to the previous screen.
+      automaticallyImplyLeading: true,
+      elevation: 0,
+      title: const Text('Favorites'),
+    );
   }
 }
 
+/// Month section with collapsible header and day-based entries.
+class _MonthSection extends StatelessWidget {
+  const _MonthSection({
+    super.key,
+    required this.monthLabel,
+    required this.daysData,
+    required this.isExpanded,
+    required this.onToggle,
+    required this.onEntryTap,
+  });
 
-/// One day's row: the date tile on the left, and every favorite entry
-/// from that day stacked inside a single shared background container
-/// on the right — the date renders exactly once per group, matching
-/// [HomePage]'s layout. [DiaryListItem] is used with
-/// `showDateColumn: false` since the date tile here already covers it.
-class _FavoriteDayGroupTile extends StatelessWidget {
-  const _FavoriteDayGroupTile({
+  final String monthLabel;
+  final Map<DateTime, List<DiaryEntry>> daysData;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final void Function(String) onEntryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final dayKeys = daysData.keys.toList();
+    final totalCount = daysData.values.fold<int>(
+      0,
+      (sum, list) => sum + list.length,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Text(
+                          monthLabel,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            '$totalCount',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (isExpanded)
+          ...dayKeys.map((day) {
+            final entries = daysData[day]!;
+            return _DayTimeline(
+              key: ValueKey(day),
+              date: day,
+              entries: entries,
+              onEntryTap: onEntryTap,
+            );
+          }),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// Timeline-style day group with connecting dots and entries.
+class _DayTimeline extends StatelessWidget {
+  const _DayTimeline({
     super.key,
     required this.date,
     required this.entries,
-    required this.dateTileBuilder,
     required this.onEntryTap,
   });
 
   final DateTime date;
-  final List<dynamic> entries;
-  final Widget Function(BuildContext, DateTime) dateTileBuilder;
-  final void Function(String entryId) onEntryTap;
+  final List<DiaryEntry> entries;
+  final void Function(String) onEntryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isToday = AppDateUtils.isToday(date);
+
+    return IntrinsicHeight(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline left column: date marker + connecting line.
+            SizedBox(
+              width: 48,
+              child: Column(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isToday
+                          ? colorScheme.primary
+                          : colorScheme.surfaceContainerLowest,
+                      shape: BoxShape.circle,
+                      border: isToday
+                          ? null
+                          : Border.all(
+                              color: colorScheme.outlineVariant,
+                              width: 1,
+                            ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      date.day.toString(),
+                      style: TextStyle(
+                        fontSize: isToday ? 16 : 14,
+                        fontWeight: FontWeight.w700,
+                        color: isToday
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            colorScheme.outlineVariant.withValues(alpha: 0.5),
+                            colorScheme.outlineVariant.withValues(alpha: 0.2),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Entry cards for this day — reuse the shared DiaryListItem
+            // so favorites look and behave identically to Diary/Timeline
+            // rows (mood, title, preview, favorite icon). The date is
+            // already shown once by the timeline marker on the left, so
+            // showDateColumn is off here.
+            Expanded(
+              child: Column(
+                children: [
+                  for (var i = 0; i < entries.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 6),
+                    DiaryListItem(
+                      key: ValueKey(entries[i].id),
+                      entry: entries[i],
+                      showDateColumn: false,
+                      onTap: () => onEntryTap(entries[i].id),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Enhanced empty state with visual appeal.
+class _ModernEmptyState extends StatelessWidget {
+  const _ModernEmptyState({required this.onCreatePressed});
+
+  final VoidCallback onCreatePressed;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        dateTileBuilder(context, date),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              children: [
-                for (var i = 0; i < entries.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 8),
-                  DiaryListItem(
-                    key: ValueKey(entries[i].id),
-                    entry: entries[i],
-                    showDateColumn: false,
-                    onTap: () => onEntryTap(entries[i].id as String),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorScheme.primaryContainer,
+                      colorScheme.primaryContainer.withValues(alpha: 0.3),
+                    ],
                   ),
-                ],
-              ],
-            ),
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.favorite_rounded,
+                      size: 48,
+                      color: colorScheme.primary.withValues(alpha: 0.4),
+                    ),
+                    Positioned(
+                      bottom: 20,
+                      right: 20,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.add, size: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+              Text(
+                'Collect your favorite moments',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Tap the star ⭐ on any diary entry\nto save it here for quick access.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              FilledButton.icon(
+                onPressed: onCreatePressed,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Create first entry'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

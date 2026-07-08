@@ -1,21 +1,22 @@
 // lib/features/home/presentation/pages/home_page.dart
 
-import 'dart:io';
-
 import 'package:bubimo/core/router/app_router.dart';
 import 'package:bubimo/core/theme/background_image_theme_extension.dart';
+import 'package:bubimo/core/utils/entry_grouping_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
+import '../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../../home/presentation/widgets/diary_list_item.dart';
+import '../../../shared/presentation/widgets/background_header_image.dart';
+import '../../../shared/presentation/widgets/date_tile.dart';
+import '../../../shared/presentation/widgets/empty_state_widget.dart';
 import '../bloc/diary_list/diary_list_bloc.dart';
 import '../bloc/diary_list/diary_list_event.dart';
 import '../bloc/diary_list/diary_list_state.dart';
-import '../widgets/diary_list_item.dart';
-import '../../../shared/presentation/widgets/empty_state_widget.dart';
 
 /// The Diary tab's content.
 ///
@@ -46,27 +47,12 @@ class _HomeView extends StatefulWidget {
   State<_HomeView> createState() => _HomeViewState();
 }
 
-/// One calendar day's worth of entries, plus the day itself — used to
-/// render a single date tile per day instead of repeating it per entry.
-class _DayGroup {
-  const _DayGroup({required this.date, required this.entries});
-
-  final DateTime date;
-  final List<dynamic> entries;
-}
-
 class _HomeViewState extends State<_HomeView> {
   // Guards against rapid repeated taps on the FAB opening multiple
   // stacked Create screens.
   bool _isNavigatingToCreate = false;
 
   static const double _headerExpandedHeight = 200;
-  static const double _dateTileWidth = 56;
-
-  static const _monthAbbreviations = [
-    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
-  ];
 
   Future<void> _openCreateEntry(BuildContext context) async {
     if (_isNavigatingToCreate) return;
@@ -90,74 +76,6 @@ class _HomeViewState extends State<_HomeView> {
     if (result == true && context.mounted) {
       context.read<DiaryListBloc>().add(const LoadDiaryEntries());
     }
-  }
-
-  /// Header images follow the same asset-vs-file convention used on the
-  /// Theme Screen's cards: default-preset images are bundled assets
-  /// (`assets/theme/theme_N.jpg`), custom-theme images are `image_picker`
-  /// file paths. Both live in the same string field, distinguished here
-  /// by the `assets/` prefix.
-  Widget _headerImage(String path) {
-    if (path.startsWith('assets/')) {
-      return Image.asset(path, fit: BoxFit.cover);
-    }
-    return Image.file(File(path), fit: BoxFit.cover);
-  }
-
-  /// Groups entries into consecutive same-day buckets, preserving the
-  /// original ordering of [entries]. Assumes entries arrive already
-  /// sorted by date (as [DiaryListBloc] provides them) — this does NOT
-  /// re-sort, it only collapses adjacent same-day entries into one
-  /// group, so a non-chronological list would produce duplicate date
-  /// tiles for the same day if it appears in two non-adjacent runs.
-  List<_DayGroup> _groupByDay(List<dynamic> entries) {
-    final groups = <_DayGroup>[];
-
-    for (final entry in entries) {
-      final entryDate = entry.date as DateTime;
-      final dayOnly = DateTime(entryDate.year, entryDate.month, entryDate.day);
-
-      if (groups.isNotEmpty && _isSameDay(groups.last.date, dayOnly)) {
-        groups.last.entries.add(entry);
-      } else {
-        groups.add(_DayGroup(date: dayOnly, entries: [entry]));
-      }
-    }
-
-    return groups;
-  }
-
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  /// The left-side "date tile": month abbreviation + big day number,
-  /// matching the reference screenshot. Shown once per day group.
-  Widget _dateTile(BuildContext context, DateTime date) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      width: _dateTileWidth,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _monthAbbreviations[date.month - 1],
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-              letterSpacing: 0.5,
-            ),
-          ),
-          Text(
-            date.day.toString().padLeft(2, '0'),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -191,7 +109,7 @@ class _HomeViewState extends State<_HomeView> {
                     background: Stack(
                       fit: StackFit.expand,
                       children: [
-                        _headerImage(headerImagePath),
+                        BackgroundHeaderImage(path: headerImagePath),
                         // Gradient so the pinned title text stays
                         // readable over busy header images at any
                         // scroll position, regardless of the theme's
@@ -276,7 +194,10 @@ class _HomeViewState extends State<_HomeView> {
                     );
                   }
 
-                  final dayGroups = _groupByDay(state.visibleEntries);
+                  final dayGroups = EntryGroupingUtils.groupByDay<DiaryEntry>(
+                    state.visibleEntries,
+                    (entry) => entry.date,
+                  );
 
                   return SliverPadding(
                     padding: const EdgeInsets.all(16),
@@ -289,7 +210,7 @@ class _HomeViewState extends State<_HomeView> {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _dateTile(context, group.date),
+                            DateTile(date: group.date),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
