@@ -8,8 +8,6 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/router/app_router.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../bloc/theme_list/theme_list_bloc.dart';
-import '../bloc/theme_list/theme_list_event.dart';
-import '../bloc/theme_list/theme_list_state.dart';
 import '../cubit/app_theme_cubit.dart';
 import '../widgets/theme_switcher/built_in_theme_tile.dart';
 import '../widgets/theme_switcher/current_theme_header.dart';

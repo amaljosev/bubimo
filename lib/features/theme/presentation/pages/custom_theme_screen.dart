@@ -8,8 +8,6 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/theme/built_in_themes.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../bloc/custom_theme_form/custom_theme_form_bloc.dart';
-import '../bloc/custom_theme_form/custom_theme_form_event.dart';
-import '../bloc/custom_theme_form/custom_theme_form_state.dart';
 import '../widgets/custom_theme_form/color_field_tile.dart';
 import '../widgets/custom_theme_form/font_picker_sheet.dart';
 import '../widgets/custom_theme_form/header_image_picker_field.dart';

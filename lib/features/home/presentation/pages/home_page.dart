@@ -48,24 +48,12 @@ class _HomeView extends StatefulWidget {
 }
 
 class _HomeViewState extends State<_HomeView> {
-  // Guards against rapid repeated taps on the FAB opening multiple
-  // stacked Create screens.
-  bool _isNavigatingToCreate = false;
-
   static const double _headerExpandedHeight = 200;
 
-  Future<void> _openCreateEntry(BuildContext context) async {
-    if (_isNavigatingToCreate) return;
-    _isNavigatingToCreate = true;
-
-    final result = await context.push<bool>(AppRoutes.diaryForm);
-
-    _isNavigatingToCreate = false;
-
-    if (result == true && context.mounted) {
-      context.read<DiaryListBloc>().add(const LoadDiaryEntries());
-    }
-  }
+  // Note: creating a new entry is no longer triggered from this page's
+  // own FAB — MainShell's NotchedNavBar owns a single persistent "+"
+  // button (in the nav bar's notch) that opens AppRoutes.diaryForm from
+  // any tab. See MainShell._openCreateEntry.
 
   Future<void> _openEntry(BuildContext context, String entryId) async {
     final result = await context.push<bool>(
@@ -189,7 +177,21 @@ class _HomeViewState extends State<_HomeView> {
                     return SliverFillRemaining(
                       child: EmptyStateWidget(
                         isFavoritesFilter: state.showFavoritesOnly,
-                        onCreatePressed: () => _openCreateEntry(context),
+                        // Creating an entry is now driven by the nav
+                        // bar's persistent FAB rather than a callback
+                        // owned by this page; push the same route
+                        // directly so the empty-state button still
+                        // works standalone.
+                        onCreatePressed: () async {
+                          final result = await context.push<bool>(
+                            AppRoutes.diaryForm,
+                          );
+                          if (result == true && context.mounted) {
+                            context.read<DiaryListBloc>().add(
+                              const LoadDiaryEntries(),
+                            );
+                          }
+                        },
                       ),
                     );
                   }
@@ -200,7 +202,14 @@ class _HomeViewState extends State<_HomeView> {
                   );
 
                   return SliverPadding(
-                    padding: const EdgeInsets.all(16),
+                    // Extra bottom inset (beyond the standard 16) so
+                    // the last entries clear the floating NotchedNavBar.
+                    // MainShell uses `extendBody: true` so this list
+                    // draws full-height behind the bar; without this,
+                    // the bottom-most entries would sit under its
+                    // opaque surface. ~140 comfortably clears the bar's
+                    // total height (flat bar + FAB protrusion).
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 140),
                     sliver: SliverList.separated(
                       itemCount: dayGroups.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 16),
@@ -242,11 +251,6 @@ class _HomeViewState extends State<_HomeView> {
             },
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'diary_new_entry_fab',
-        onPressed: () => _openCreateEntry(context),
-        child: const Icon(Icons.add),
       ),
     );
   }

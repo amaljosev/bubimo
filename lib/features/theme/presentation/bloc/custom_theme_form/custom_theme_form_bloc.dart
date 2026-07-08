@@ -1,13 +1,16 @@
 // lib/features/theme/presentation/bloc/custom_theme_form/custom_theme_form_bloc.dart
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/utils/id_generator.dart';
 import '../../../domain/entities/app_theme_data.dart';
+import '../../../domain/entities/rgba_color.dart';
 import '../../../domain/entities/theme_type.dart';
 import '../../../domain/usecases/save_custom_theme.dart';
-import 'custom_theme_form_event.dart';
-import 'custom_theme_form_state.dart';
+
+part 'custom_theme_form_event.dart';
+part 'custom_theme_form_state.dart';
 
 /// Drives the Create/Edit Custom Theme screen.
 ///

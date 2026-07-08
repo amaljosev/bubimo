@@ -1,11 +1,12 @@
 // lib/features/theme/presentation/widgets/theme_switcher/custom_theme_tile.dart
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../domain/entities/app_theme_data.dart';
+import '../shared/theme_color_swatch.dart';
+import '../shared/theme_font_label.dart';
+import '../shared/theme_header_image.dart';
+import '../shared/theme_tile_card.dart';
 
 /// A single custom theme row on the "Custom Themes" tab.
 ///
@@ -39,102 +40,64 @@ class CustomThemeTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final headerImagePath = theme.headerImagePath;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: isActive
-            ? BorderSide(color: colorScheme.primary, width: 2)
-            : BorderSide.none,
+    return ThemeTileCard(
+      isActive: isActive,
+      leading: headerImagePath != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 56,
+                height: 56,
+                child: ThemeHeaderImage.fromTheme(theme),
+              ),
+            )
+          : ThemeColorGradientBlock(
+              colors: [
+                theme.primaryColor.toColor(),
+                theme.accentColor.toColor(),
+              ],
+            ),
+      titleAndSubtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ThemeFontLabel(
+            theme.name,
+            fontFamily: theme.fontFamily,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: colorScheme.onSurface,
+          ),
+          const SizedBox(height: 4),
+          ThemeFontLabel(
+            theme.fontFamily,
+            fontFamily: theme.fontFamily,
+            fontSize: 13,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (headerImagePath != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      File(headerImagePath),
-                      width: 56,
-                      height: 56,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                else
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      gradient: LinearGradient(
-                        colors: [
-                          theme.primaryColor.toColor(),
-                          theme.accentColor.toColor(),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        theme.name,
-                        style: GoogleFonts.getFont(
-                          theme.fontFamily,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        theme.fontFamily,
-                        style: GoogleFonts.getFont(
-                          theme.fontFamily,
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isActive)
-                  Icon(Icons.check_circle, color: colorScheme.primary),
-              ],
+      trailing:
+          isActive ? Icon(Icons.check_circle, color: colorScheme.primary) : null,
+      footer: Row(
+        children: [
+          Expanded(
+            child: FilledButton.tonal(
+              onPressed: isEnabled && !isActive ? onApply : null,
+              child: Text(isActive ? 'Applied' : 'Apply Theme'),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.tonal(
-                    onPressed: isEnabled && !isActive ? onApply : null,
-                    child: Text(isActive ? 'Applied' : 'Apply Theme'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: isEnabled ? onEdit : null,
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Edit',
-                ),
-                IconButton(
-                  onPressed: isEnabled ? onDelete : null,
-                  icon: Icon(Icons.delete_outline, color: colorScheme.error),
-                  tooltip: 'Delete',
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: isEnabled ? onEdit : null,
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit',
+          ),
+          IconButton(
+            onPressed: isEnabled ? onDelete : null,
+            icon: Icon(Icons.delete_outline, color: colorScheme.error),
+            tooltip: 'Delete',
+          ),
+        ],
       ),
     );
   }

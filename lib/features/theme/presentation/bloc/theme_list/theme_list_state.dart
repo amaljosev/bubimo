@@ -1,8 +1,6 @@
 // lib/features/theme/presentation/bloc/theme_list/theme_list_state.dart
 
-import 'package:equatable/equatable.dart';
-
-import '../../../domain/entities/app_theme_data.dart';
+part of 'theme_list_bloc.dart';
 
 enum ThemeListStatus { initial, loading, loaded, failure }
 
@@ -27,7 +25,7 @@ class ThemeListState extends Equatable {
     this.isActionInProgress = false,
   });
 
-  bool get canAddCustomTheme => customThemes.length < 3;
+  bool get canAddCustomTheme => customThemes.length < kMaxCustomThemes;
 
   ThemeListState copyWith({
     ThemeListStatus? status,

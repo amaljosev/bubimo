@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import 'theme_data_builder.dart';
+
 /// Builds the app's base/default ThemeData.
 ///
 /// This is the fallback theme used before AppThemeCubit (theme feature)
@@ -9,6 +11,10 @@ import 'package:flutter/material.dart';
 /// themes are derived from. Uses current Material 3 conventions
 /// (ColorScheme.fromSeed) rather than deprecated primarySwatch/accentColor
 /// fields.
+///
+/// The actual `ThemeData` shape (card/appBar/input decoration shapes)
+/// is shared with `theme_mapper.dart` via [ThemeDataBuilder] so the two
+/// theme-construction paths can't drift apart.
 class AppTheme {
   AppTheme._();
 
@@ -18,35 +24,9 @@ class AppTheme {
       brightness: Brightness.light,
     );
 
-    return ThemeData(
-      useMaterial3: true,
+    return ThemeDataBuilder.build(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      cardTheme: CardThemeData(
-        color: colorScheme.surfaceContainerHighest,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
     );
   }
 
@@ -56,23 +36,9 @@ class AppTheme {
       brightness: Brightness.dark,
     );
 
-    return ThemeData(
-      useMaterial3: true,
+    return ThemeDataBuilder.build(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: colorScheme.surface,
-      appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      cardTheme: CardThemeData(
-        color: colorScheme.surfaceContainerHighest,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
     );
   }
 }

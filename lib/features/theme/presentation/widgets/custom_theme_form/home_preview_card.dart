@@ -1,11 +1,10 @@
 // lib/features/theme/presentation/widgets/custom_theme_form/home_preview_card.dart
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../domain/entities/rgba_color.dart';
+import '../shared/theme_header_image.dart';
 
 /// A miniature, self-contained mock-up of the Home Screen (Diary tab),
 /// themed entirely from the in-memory field values currently being
@@ -173,7 +172,7 @@ class _PreviewHeader extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (path != null)
-            _headerImage(path)
+            ThemeHeaderImage.fromPath(path)
           else
             ColoredBox(color: primaryColor.withValues(alpha: 0.85)),
           DecoratedBox(
@@ -202,13 +201,6 @@ class _PreviewHeader extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Widget _headerImage(String path) {
-    if (path.startsWith('assets/')) {
-      return Image.asset(path, fit: BoxFit.cover);
-    }
-    return Image.file(File(path), fit: BoxFit.cover);
   }
 }
 

@@ -1,6 +1,6 @@
 // lib/features/theme/presentation/bloc/theme_list/theme_list_event.dart
 
-import 'package:equatable/equatable.dart';
+part of 'theme_list_bloc.dart';
 
 sealed class ThemeListEvent extends Equatable {
   const ThemeListEvent();

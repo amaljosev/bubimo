@@ -1,11 +1,12 @@
 // lib/features/theme/presentation/widgets/theme_switcher/current_theme_header.dart
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../core/theme/theme_tokens.dart';
 import '../../../domain/entities/app_theme_data.dart';
+import '../shared/theme_color_swatch.dart';
+import '../shared/theme_font_label.dart';
+import '../shared/theme_header_image.dart';
 
 /// Displays the currently applied theme at the top of the Theme
 /// Switcher screen: name, header image (if any), and a small color
@@ -28,7 +29,7 @@ class CurrentThemeHeader extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(ThemeRadii.xxl),
         color: colorScheme.surfaceContainerHighest,
       ),
       clipBehavior: Clip.antiAlias,
@@ -39,12 +40,10 @@ class CurrentThemeHeader extends StatelessWidget {
             SizedBox(
               height: 110,
               width: double.infinity,
-              child: theme.isHeaderImageAsset
-                  ? Image.asset(headerImagePath, fit: BoxFit.cover)
-                  : Image.file(File(headerImagePath), fit: BoxFit.cover),
+              child: ThemeHeaderImage.fromTheme(theme),
             ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(ThemeSpacing.lg),
             child: Row(
               children: [
                 Expanded(
@@ -58,48 +57,27 @@ class CurrentThemeHeader extends StatelessWidget {
                             ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      ThemeFontLabel(
                         theme.name,
-                        style: GoogleFonts.getFont(
-                          theme.fontFamily,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                        ),
+                        fontFamily: theme.fontFamily,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
                       ),
                     ],
                   ),
                 ),
-                Row(
-                  children: [
-                    _Dot(color: theme.primaryColor.toColor()),
-                    const SizedBox(width: 4),
-                    _Dot(color: theme.accentColor.toColor()),
+                ThemeColorDotRow(
+                  colors: [
+                    theme.primaryColor.toColor(),
+                    theme.accentColor.toColor(),
                   ],
+                  dotSize: 22,
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Dot extends StatelessWidget {
-  final Color color;
-
-  const _Dot({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.black12),
       ),
     );
   }

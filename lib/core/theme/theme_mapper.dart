@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../features/theme/domain/entities/app_theme_data.dart';
 import 'background_image_theme_extension.dart';
+import 'theme_data_builder.dart';
 
 /// Converts a domain [AppThemeData] into a Flutter [ThemeData].
 ///
@@ -34,6 +35,10 @@ import 'background_image_theme_extension.dart';
 /// — every text style (headings through body) uses the theme's font.
 /// `GoogleFonts.getTextTheme` also fetches/caches the font at runtime,
 /// so no font asset bundling or pubspec registration is needed per font.
+///
+/// The rest of the `ThemeData` shape (card/appBar/input decoration
+/// shapes) is shared with `AppTheme` via [ThemeDataBuilder] so the two
+/// theme-construction paths can't drift apart.
 ThemeData buildThemeData(AppThemeData theme) {
   final primaryColor = theme.primaryColor.toColor();
   final accentColor = theme.accentColor.toColor();
@@ -57,37 +62,11 @@ ThemeData buildThemeData(AppThemeData theme) {
     baseTextTheme,
   );
 
-  return ThemeData(
-    useMaterial3: true,
+  return ThemeDataBuilder.build(
     colorScheme: colorScheme,
     scaffoldBackgroundColor: backgroundColor,
     textTheme: themedTextTheme,
-    appBarTheme: AppBarTheme(
-      backgroundColor: Colors.transparent,
-      foregroundColor: colorScheme.onSurface,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: themedTextTheme.titleLarge?.copyWith(
-        color: colorScheme.onSurface,
-      ),
-    ),
-    cardTheme: CardThemeData(
-      color: colorScheme.surfaceContainerHighest,
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: colorScheme.surfaceContainerHighest,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-    ),
+    transparentAppBar: true,
     extensions: [
       BackgroundImageTheme(
         imagePath: theme.headerImagePath,

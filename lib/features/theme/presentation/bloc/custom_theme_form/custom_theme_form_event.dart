@@ -1,9 +1,6 @@
 // lib/features/theme/presentation/bloc/custom_theme_form/custom_theme_form_event.dart
 
-import 'package:equatable/equatable.dart';
-
-import '../../../domain/entities/app_theme_data.dart';
-import '../../../domain/entities/rgba_color.dart';
+part of 'custom_theme_form_bloc.dart';
 
 sealed class CustomThemeFormEvent extends Equatable {
   const CustomThemeFormEvent();

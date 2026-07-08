@@ -4,7 +4,6 @@ import 'package:bubimo/core/di/injection.dart';
 import 'package:bubimo/core/navigation/main_shell.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
 import '../../../features/diary_entry/presentation/pages/diary_form_page.dart';
 import '../../../features/favorites/presentation/pages/favorites_page.dart';
@@ -30,13 +29,13 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String favorites = '/favorites';
 
-  // NOTE: Timeline, Favorites, Diary, Themes, and Profile are the five
+  // NOTE: Timeline, Diary, Themes, and Profile are the four
   // bottom-navigation tabs (reached via '/', inside MainShell) — none of
-  // them are pushed routes on their own. Favorites is the one exception
-  // worth calling out: it's ALSO reachable as a pushed route
-  // (AppRoutes.favorites, above) from the favorite-count pill on
-  // Timeline's header, independent of switching bottom-nav tabs. Both
-  // paths land on the same FavoritesPage/shared DiaryListBloc.
+  // them are pushed routes on their own. Favorites is NOT a tab anymore;
+  // it's reachable only as a pushed route (AppRoutes.favorites, above)
+  // from the favorite-count pill on Timeline's header. That pushed route
+  // still lands on the same FavoritesPage/shared DiaryListBloc as
+  // before — only its bottom-nav entry was removed.
   //
   // Profile & Analytics is now a single combined tab (ProfileAnalyticsScreen,
   // rendered by MainShell) rather than a separate pushed screen — there is

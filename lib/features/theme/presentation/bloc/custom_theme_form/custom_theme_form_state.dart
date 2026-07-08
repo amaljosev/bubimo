@@ -1,8 +1,6 @@
 // lib/features/theme/presentation/bloc/custom_theme_form/custom_theme_form_state.dart
 
-import 'package:equatable/equatable.dart';
-
-import '../../../domain/entities/rgba_color.dart';
+part of 'custom_theme_form_bloc.dart';
 
 enum CustomThemeFormStatus { initial, ready, submitting, success, failure }
 

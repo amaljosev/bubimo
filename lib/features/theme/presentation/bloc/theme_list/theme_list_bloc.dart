@@ -1,13 +1,17 @@
 // lib/features/theme/presentation/bloc/theme_list/theme_list_bloc.dart
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../domain/entities/app_theme_data.dart';
 import '../../../domain/usecases/delete_custom_theme.dart';
 import '../../../domain/usecases/get_all_themes.dart';
 import '../../../domain/usecases/get_selected_theme.dart';
+import '../../../domain/usecases/save_custom_theme.dart' show kMaxCustomThemes;
 import '../../cubit/app_theme_cubit.dart';
-import 'theme_list_event.dart';
-import 'theme_list_state.dart';
+
+part 'theme_list_event.dart';
+part 'theme_list_state.dart';
 
 /// Drives the Theme Switcher screen's list of built-in + custom themes.
 ///
