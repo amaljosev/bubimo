@@ -163,9 +163,9 @@ class _StickerPickerSheet extends StatelessWidget {
                                   fit: BoxFit.contain,
                                   fadeInDuration: Duration.zero,
                                   fadeOutDuration: Duration.zero,
-                                  placeholder: (_, __) =>
+                                  placeholder: (_, _) =>
                                       const SizedBox.shrink(),
-                                  errorWidget: (_, __, ___) => const Icon(
+                                  errorWidget: (_, _, _) => const Icon(
                                     Icons.broken_image,
                                     color: Colors.grey,
                                   ),

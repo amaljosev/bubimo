@@ -44,7 +44,6 @@ class _FontOption {
 /// fetch (falls back to the default font if offline and not yet
 /// cached).
 ///
-/// Curated for journaling: a mix of handwriting/script (personal,
 /// diary-like feel), serif (classic, reflective), clean sans (easy
 /// everyday reading), playful display faces (lighter entries), and
 /// monospace (typewriter-diary feel).
@@ -306,6 +305,7 @@ class _CategoryTabs extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: _FontCategory.values.length,
+            // ignore: unnecessary_underscores
             separatorBuilder: (_, __) => const SizedBox(width: 6),
             itemBuilder: (context, index) {
               final value = _FontCategory.values[index];

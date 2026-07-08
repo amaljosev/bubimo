@@ -46,12 +46,27 @@ class _HomeView extends StatefulWidget {
   State<_HomeView> createState() => _HomeViewState();
 }
 
+/// One calendar day's worth of entries, plus the day itself — used to
+/// render a single date tile per day instead of repeating it per entry.
+class _DayGroup {
+  const _DayGroup({required this.date, required this.entries});
+
+  final DateTime date;
+  final List<dynamic> entries;
+}
+
 class _HomeViewState extends State<_HomeView> {
   // Guards against rapid repeated taps on the FAB opening multiple
   // stacked Create screens.
   bool _isNavigatingToCreate = false;
 
   static const double _headerExpandedHeight = 200;
+  static const double _dateTileWidth = 56;
+
+  static const _monthAbbreviations = [
+    'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  ];
 
   Future<void> _openCreateEntry(BuildContext context) async {
     if (_isNavigatingToCreate) return;
@@ -87,6 +102,62 @@ class _HomeViewState extends State<_HomeView> {
       return Image.asset(path, fit: BoxFit.cover);
     }
     return Image.file(File(path), fit: BoxFit.cover);
+  }
+
+  /// Groups entries into consecutive same-day buckets, preserving the
+  /// original ordering of [entries]. Assumes entries arrive already
+  /// sorted by date (as [DiaryListBloc] provides them) — this does NOT
+  /// re-sort, it only collapses adjacent same-day entries into one
+  /// group, so a non-chronological list would produce duplicate date
+  /// tiles for the same day if it appears in two non-adjacent runs.
+  List<_DayGroup> _groupByDay(List<dynamic> entries) {
+    final groups = <_DayGroup>[];
+
+    for (final entry in entries) {
+      final entryDate = entry.date as DateTime;
+      final dayOnly = DateTime(entryDate.year, entryDate.month, entryDate.day);
+
+      if (groups.isNotEmpty && _isSameDay(groups.last.date, dayOnly)) {
+        groups.last.entries.add(entry);
+      } else {
+        groups.add(_DayGroup(date: dayOnly, entries: [entry]));
+      }
+    }
+
+    return groups;
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  /// The left-side "date tile": month abbreviation + big day number,
+  /// matching the reference screenshot. Shown once per day group.
+  Widget _dateTile(BuildContext context, DateTime date) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: _dateTileWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _monthAbbreviations[date.month - 1],
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              letterSpacing: 0.5,
+            ),
+          ),
+          Text(
+            date.day.toString().padLeft(2, '0'),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -204,16 +275,44 @@ class _HomeViewState extends State<_HomeView> {
                       ),
                     );
                   }
+
+                  final dayGroups = _groupByDay(state.visibleEntries);
+
                   return SliverPadding(
                     padding: const EdgeInsets.all(16),
                     sliver: SliverList.separated(
-                      itemCount: state.visibleEntries.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final entry = state.visibleEntries[index];
-                        return DiaryListItem(
-                          entry: entry,
-                          onTap: () => _openEntry(context, entry.id),
+                      itemCount: dayGroups.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 16),
+                      itemBuilder: (context, groupIndex) {
+                        final group = dayGroups[groupIndex];
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _dateTile(context, group.date),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  for (
+                                    var i = 0;
+                                    i < group.entries.length;
+                                    i++
+                                  ) ...[
+                                    if (i > 0) const SizedBox(height: 8),
+                                    DiaryListItem(
+                                      entry: group.entries[i],
+                                      showDateColumn: false,
+                                      onTap: () => _openEntry(
+                                        context,
+                                        group.entries[i].id,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                         );
                       },
                     ),

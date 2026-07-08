@@ -25,7 +25,19 @@ class DiaryListItem extends StatelessWidget {
   final DiaryEntry entry;
   final VoidCallback onTap;
 
-  const DiaryListItem({super.key, required this.entry, required this.onTap});
+  /// Whether to render the built-in day-number/weekday column on the
+  /// left. Defaults to true for standalone use. Pass `false` when a
+  /// parent list (e.g. [HomePage]'s date-grouped list) already shows
+  /// its own date tile once per day, to avoid the date rendering
+  /// twice for the same entry.
+  final bool showDateColumn;
+
+  const DiaryListItem({
+    super.key,
+    required this.entry,
+    required this.onTap,
+    this.showDateColumn = true,
+  });
 
   static const List<String> _weekdayAbbr = [
     'Mon',
@@ -50,6 +62,61 @@ class DiaryListItem extends StatelessWidget {
     final cardColor = colorScheme.primaryContainer.withValues(alpha: 0.5);
     final onCardColor = colorScheme.onSurfaceVariant;
 
+    final card = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (entry.mood != null) ...[
+                Text(
+                  entry.mood!.emoji,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  entry.mood!.label.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: onCardColor,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (entry.isFavorite)
+                Icon(
+                  Icons.favorite,
+                  size: 14,
+                  color: colorScheme.primary,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            preview,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: onCardColor,
+            ),
+          ),
+        ],
+      ),
+    );
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -58,99 +125,32 @@ class DiaryListItem extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Date column
-            SizedBox(
-              width: 56,
-              child: Column(
-                children: [
-                  Text(
-                    entry.date.day.toString().padLeft(2, '0'),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _weekdayAbbr[entry.date.weekday - 1],
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Card
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(18),
-                ),
+            // Date column — omitted when a parent list already renders
+            // its own date tile (see [showDateColumn] doc above).
+            if (showDateColumn) ...[
+              SizedBox(
+                width: 56,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        if (entry.mood != null) ...[
-                          Text(
-                            entry.mood!.emoji,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            entry.mood!.label.toUpperCase(),
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: onCardColor,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                        // if (entry.moodScore != null) ...[
-                        //   Text(
-                        //     '  •  ',
-                        //     style: theme.textTheme.labelSmall
-                        //         ?.copyWith(color: onCardColor),
-                        //   ),
-                        //   Text(
-                        //     '${entry.moodScore!.toStringAsFixed(1)}/10',
-                        //     style: theme.textTheme.labelSmall?.copyWith(
-                        //       color: onCardColor,
-                        //       fontWeight: FontWeight.w600,
-                        //     ),
-                        //   ),
-                        // ],
-                        const Spacer(),
-                        if (entry.isFavorite)
-                          Icon(
-                            Icons.favorite,
-                            size: 14,
-                            color: colorScheme.primary,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
                     Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall,
+                      entry.date.day.toString().padLeft(2, '0'),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      preview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: onCardColor,
+                      _weekdayAbbr[entry.date.weekday - 1],
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(child: card),
           ],
         ),
       ),
