@@ -130,28 +130,20 @@ class _HomeViewState extends State<_HomeView> {
           SliverToBoxAdapter(
             child: Column(
               children: [
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 BlocBuilder<DiaryListBloc, DiaryListState>(
                   builder: (context, state) {
                     return Center(
-                      child: SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment(value: false, label: Text('All')),
-                          ButtonSegment(
-                            value: true,
-                            label: Text('Favorites'),
-                            icon: Icon(Icons.favorite, size: 16),
-                          ),
-                        ],
-                        selected: {state.showFavoritesOnly},
-                        onSelectionChanged: (selection) => context
-                            .read<DiaryListBloc>()
-                            .add(FavoritesFilterChanged(selection.first)),
+                      child: _FavoritesFilterToggle(
+                        showFavoritesOnly: state.showFavoritesOnly,
+                        onChanged: (value) => context.read<DiaryListBloc>().add(
+                          FavoritesFilterChanged(value),
+                        ),
                       ),
                     );
                   },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
               ],
             ),
           ),
@@ -250,7 +242,134 @@ class _HomeViewState extends State<_HomeView> {
               }
             },
           ),
+          SliverToBoxAdapter(child: const SizedBox(height: 200)),
         ],
+      ),
+    );
+  }
+}
+
+/// A pill-shaped, two-option toggle ("All" / "Favorites") with an
+/// animated sliding capsule behind the selected label.
+///
+/// Both segments are given an identical fixed width (rather than
+/// sizing to their own text/icon content), so the sliding capsule's
+/// position is always an exact, symmetric half of the track — no
+/// drift between "All" (shorter label) and "Favorites" (longer label
+/// with icon).
+class _FavoritesFilterToggle extends StatelessWidget {
+  const _FavoritesFilterToggle({
+    required this.showFavoritesOnly,
+    required this.onChanged,
+  });
+
+  final bool showFavoritesOnly;
+  final ValueChanged<bool> onChanged;
+
+  static const _height = 40.0;
+  static const _trackPadding = 4.0;
+  static const _segmentWidth = 108.0; // fixed, identical for both segments
+  static const _radius = Radius.circular(_height / 2);
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    const trackWidth = _segmentWidth * 2 + _trackPadding * 2;
+
+    return Container(
+      height: _height,
+      width: trackWidth,
+      padding: const EdgeInsets.all(_trackPadding),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.all(_radius),
+      ),
+      child: Stack(
+        children: [
+          // Sliding highlight capsule. Positioned with exact pixel
+          // offsets (0 vs. _segmentWidth) rather than Alignment, so it
+          // always sits flush under whichever segment is active,
+          // regardless of that segment's own content width.
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            left: showFavoritesOnly ? _segmentWidth : 0,
+            top: 0,
+            bottom: 0,
+            width: _segmentWidth,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.all(_radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _buildOption(
+                context,
+                label: 'All',
+                icon: null,
+                isSelected: !showFavoritesOnly,
+                onTap: () => onChanged(false),
+              ),
+              _buildOption(
+                context,
+                label: 'Favorites',
+                icon: Icons.favorite_rounded,
+                isSelected: showFavoritesOnly,
+                onTap: () => onChanged(true),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOption(
+    BuildContext context, {
+    required String label,
+    required IconData? icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final foreground = isSelected
+        ? colorScheme.primary
+        : colorScheme.onSurfaceVariant;
+
+    return SizedBox(
+      width: _segmentWidth,
+      height: double.infinity,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 220),
+          style: TextStyle(
+            color: foreground,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            fontSize: 13,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 15, color: foreground),
+                const SizedBox(width: 6),
+              ],
+              Text(label),
+            ],
+          ),
+        ),
       ),
     );
   }

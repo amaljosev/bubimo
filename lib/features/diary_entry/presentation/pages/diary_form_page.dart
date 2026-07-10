@@ -620,6 +620,7 @@ class _DiaryFormViewState extends State<_DiaryFormView> {
                       fit: BoxFit.cover,
                       colorFilter: OverlayTintUtils.resolveColorFilter(
                         bgOverlayColor: state.bgOverlayColor,
+                        themeBrightness: Theme.of(context).brightness,
                         opacity: state.bgOverlayOpacity,
                       ),
                     ),

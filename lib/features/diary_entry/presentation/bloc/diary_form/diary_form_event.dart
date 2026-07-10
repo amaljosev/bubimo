@@ -244,9 +244,12 @@ final class DiaryFormBackgroundChanged extends DiaryFormEvent {
 /// together since the opacity settings sheet exposes them as one
 /// control group, unlike [DiaryFormBackgroundChanged]'s
 /// exactly-one-of-three shape.
+///
+/// [color] is `'white'`, `'black'`, or `null` for "Auto" (tint follows
+/// the app's active theme automatically — see [OverlayTintUtils]).
 final class DiaryFormOverlayOpacityChanged extends DiaryFormEvent {
   final double opacity;
-  final String color;
+  final String? color;
 
   const DiaryFormOverlayOpacityChanged({
     required this.opacity,

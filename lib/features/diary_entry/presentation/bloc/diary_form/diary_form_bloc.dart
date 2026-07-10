@@ -325,6 +325,11 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
       state.copyWith(
         bgOverlayOpacity: event.opacity,
         bgOverlayColor: event.color,
+        // event.color == null means the user picked "Auto" — copyWith's
+        // usual `?? this.bgOverlayColor` fallback can't express
+        // "explicitly clear back to null", so route through the same
+        // clear-flag pattern used elsewhere in this state.
+        clearOverlayColor: event.color == null,
       ),
     );
   }

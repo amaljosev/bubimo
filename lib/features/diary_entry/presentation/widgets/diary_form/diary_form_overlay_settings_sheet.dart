@@ -30,7 +30,9 @@ class DiaryFormOverlaySettingsSheet extends StatefulWidget {
 class _DiaryFormOverlaySettingsSheetState
     extends State<DiaryFormOverlaySettingsSheet> {
   late double _opacity;
-  late String _color;
+
+  /// `null` = "Auto" (tint follows the app's active theme).
+  late String? _color;
 
   @override
   void initState() {
@@ -82,7 +84,7 @@ class _DiaryFormOverlaySettingsSheetState
             const SizedBox(height: 4),
             Text(
               'Adjust the tint over your background photo so text '
-              'stays readable.',
+              'stays readable. Auto matches your app theme.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
@@ -90,6 +92,18 @@ class _DiaryFormOverlaySettingsSheetState
             const SizedBox(height: 16),
             Row(
               children: [
+                Expanded(
+                  child: _TintChoiceChip(
+                    label: 'Auto',
+                    icon: Icons.brightness_auto_outlined,
+                    selected: _color == null,
+                    onTap: () {
+                      setState(() => _color = null);
+                      _apply();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _TintChoiceChip(
                     label: 'Light',
@@ -101,7 +115,7 @@ class _DiaryFormOverlaySettingsSheetState
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _TintChoiceChip(
                     label: 'Dark',

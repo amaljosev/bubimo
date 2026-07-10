@@ -38,10 +38,13 @@ class DiaryEntry extends Equatable {
   final double bgOverlayOpacity;
 
   /// Which color is blended over the background image: `'white'`
-  /// (lightens, for dark/busy photos) or `'black'` (darkens, for
-  /// bright/washed-out photos). Defaults to `'white'`, matching the
-  /// original fixed behavior.
-  final String bgOverlayColor;
+  /// (lightens, for dark/busy photos), `'black'` (darkens, for
+  /// bright/washed-out photos), or `null` for "Auto". Defaults to
+  /// `null`, meaning the tint automatically follows the app's active
+  /// theme (dark theme → light tint, light theme → dark tint) until the
+  /// user explicitly overrides it for this entry — see
+  /// `OverlayTintUtils`.
+  final String? bgOverlayColor;
 
   /// Denormalized cache of gallery photo paths inserted inline into the
   /// Quill document (see [overlayImages] for the separate free-floating
@@ -86,7 +89,7 @@ class DiaryEntry extends Equatable {
     this.bgGalleryImagePath,
     this.bgLocalPath,
     this.bgOverlayOpacity = 0.85,
-    this.bgOverlayColor = 'white',
+    this.bgOverlayColor,
     this.images = const [],
     this.tags = const [],
     this.overlayImages = const [],

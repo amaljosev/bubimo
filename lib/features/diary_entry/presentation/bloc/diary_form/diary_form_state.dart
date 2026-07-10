@@ -86,9 +86,13 @@ class DiaryFormState extends Equatable {
   /// with before this became adjustable.
   final double bgOverlayOpacity;
 
-  /// Tint color blended over the background image: `'white'` or
-  /// `'black'`. Defaults to `'white'`, matching original behavior.
-  final String bgOverlayColor;
+  /// Tint color blended over the background image: `'white'`,
+  /// `'black'`, or `null` for "Auto". Defaults to `null`, meaning the
+  /// tint automatically follows the app's active theme (dark app theme
+  /// → light tint, light app theme → dark tint) until the user
+  /// explicitly overrides it for this entry via the overlay settings
+  /// sheet — see [OverlayTintUtils].
+  final String? bgOverlayColor;
 
   final String? errorMessage;
 
@@ -109,7 +113,7 @@ class DiaryFormState extends Equatable {
     this.bgGalleryImagePath,
     this.bgLocalPath,
     this.bgOverlayOpacity = 0.50,
-    this.bgOverlayColor = 'white',
+    this.bgOverlayColor,
     this.errorMessage,
   });
 
@@ -145,6 +149,7 @@ class DiaryFormState extends Equatable {
     bool clearBackgrounds = false,
     double? bgOverlayOpacity,
     String? bgOverlayColor,
+    bool clearOverlayColor = false,
     String? errorMessage,
   }) {
     return DiaryFormState(
@@ -172,7 +177,9 @@ class DiaryFormState extends Equatable {
       bgLocalPath:
           clearBackgrounds ? bgLocalPath : (bgLocalPath ?? this.bgLocalPath),
       bgOverlayOpacity: bgOverlayOpacity ?? this.bgOverlayOpacity,
-      bgOverlayColor: bgOverlayColor ?? this.bgOverlayColor,
+      bgOverlayColor: clearOverlayColor
+          ? null
+          : (bgOverlayColor ?? this.bgOverlayColor),
       errorMessage: errorMessage,
     );
   }

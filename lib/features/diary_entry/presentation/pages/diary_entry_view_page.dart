@@ -235,6 +235,7 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
                 fit: BoxFit.cover,
                 colorFilter: OverlayTintUtils.resolveColorFilter(
                   bgOverlayColor: entry.bgOverlayColor,
+                  themeBrightness: Theme.of(context).brightness,
                   opacity: entry.bgOverlayOpacity,
                 ),
               ),

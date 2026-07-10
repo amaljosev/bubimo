@@ -101,8 +101,11 @@ class DiaryEntryModel extends DiaryEntry {
               as num?)
           ?.toDouble() ??
           0.85,
+      // No fallback to a literal color here: NULL in the DB means
+      // "Auto" (tint follows the app theme) and must round-trip as
+      // `null`, not be coerced into a fixed color choice.
       bgOverlayColor:
-          map[DiaryEntriesTable.columnBgOverlayColor] as String? ?? 'white',
+          map[DiaryEntriesTable.columnBgOverlayColor] as String?,
       images: _decodeStringList(
         map[DiaryEntriesTable.columnImages] as String?,
       ),
