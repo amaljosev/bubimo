@@ -324,7 +324,12 @@ class _BuiltInThemesTab extends StatelessWidget {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.fromLTRB(
+        0,
+        8,
+        0,
+        24 + MediaQuery.of(context).padding.bottom,
+      ),
       itemCount: state.builtInThemes.length,
       itemBuilder: (context, index) {
         final theme = state.builtInThemes[index];
@@ -379,7 +384,12 @@ class _CustomThemesTab extends StatelessWidget {
           child: state.customThemes.isEmpty
               ? _EmptyCustomThemes(onAdd: onAdd)
               : ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 24),
+                  padding: EdgeInsets.fromLTRB(
+                    0,
+                    8,
+                    0,
+                    24 + MediaQuery.of(context).padding.bottom,
+                  ),
                   itemCount: state.customThemes.length,
                   itemBuilder: (context, index) {
                     final theme = state.customThemes[index];

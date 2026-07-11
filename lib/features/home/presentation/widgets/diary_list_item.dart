@@ -22,6 +22,18 @@ import 'package:flutter/material.dart';
 ///   - `entry.mood!.label`  -> String, e.g. "Happy"
 ///   - `entry.moodScore`    -> double? (0.0–10.0), shown as "x.x/10"
 /// `title`/`content`/`preview`/`moodScore` are treated as nullable.
+///
+/// Card color: reads `colorScheme.surfaceContainerHighest`, which
+/// `theme_mapper.dart` explicitly maps from `AppThemeData.surfaceColor`
+/// — this is the same field the Create/Edit Custom Theme form's
+/// "Surface" tile edits and the live preview (`HomePreviewCard`)
+/// renders directly. Previously this read `colorScheme.primaryContainer`,
+/// which Flutter auto-derives from `primary` when not explicitly set,
+/// producing a tile color completely disconnected from the user's
+/// Surface pick (see theme_mapper.dart's ColorScheme construction —
+/// primaryContainer is never set there). Do not revert to
+/// primaryContainer without also explicitly setting it in
+/// theme_mapper.dart.
 class DiaryListItem extends StatelessWidget {
   final DiaryEntry entry;
   final VoidCallback onTap;
@@ -50,7 +62,11 @@ class DiaryListItem extends StatelessWidget {
         ? entry.preview!
         : (entry.content ?? '');
 
-    final cardColor = colorScheme.primaryContainer.withValues(alpha: 0.5);
+    // Surface color, straight from the theme — matches what the user
+    // picked in the Colors > Surface field and sees in the live
+    // preview. No alpha dilution: the preview shows this color at
+    // full strength, so the real tile should match exactly.
+    final cardColor = colorScheme.surfaceContainerHighest;
     final onCardColor = colorScheme.onSurfaceVariant;
 
     final card = Container(

@@ -197,7 +197,6 @@ class _TimelineViewState extends State<_TimelineView>
     ).extension<BackgroundImageTheme>()?.imagePath;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocBuilder<DiaryListBloc, DiaryListState>(
         buildWhen: (previous, current) =>
             previous.status != current.status ||
@@ -374,7 +373,6 @@ class _TimelineHeroAppBar extends StatelessWidget {
       expandedHeight: 200,
       collapsedHeight: 60,
       stretch: true,
-      backgroundColor: theme.colorScheme.surface,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       automaticallyImplyLeading: false,

@@ -54,7 +54,7 @@ class CustomThemeTile extends StatelessWidget {
           : ThemeColorGradientBlock(
               colors: [
                 theme.primaryColor.toColor(),
-                theme.accentColor.toColor(),
+                theme.secondaryColor.toColor(),
               ],
             ),
       titleAndSubtitle: Column(

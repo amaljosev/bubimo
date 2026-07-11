@@ -7,9 +7,20 @@ import '../../../diary_entry/domain/entities/mood.dart';
 
 /// Shows how many entries have each mood as a rounded-bar chart, built
 /// with fl_chart. Bars are colored by a themed gradient from
-/// [ColorScheme.primary] to [ColorScheme.tertiary] rather than
+/// [ColorScheme.primary] to [ColorScheme.secondary] rather than
 /// mood-specific colors, keeping the chart visually consistent with
 /// whatever theme the user has selected.
+///
+/// Uses [ColorScheme.primary]/[ColorScheme.secondary] for the bar
+/// gradient (not `tertiary` — this app only ever collects 5 theme
+/// colors, and `theme_mapper.dart` maps `tertiary` to the same value as
+/// `secondary`, so reaching for `secondary` directly here is equivalent
+/// and clearer about intent). The touch tooltip uses
+/// [ColorScheme.inverseSurface]/[ColorScheme.onInverseSurface], which
+/// `theme_mapper.dart` now derives from the theme's own brightness
+/// rather than leaving unset (previously this silently fell back to an
+/// untamed Material default that could blend into the page
+/// background under some custom themes).
 class MoodCountChart extends StatelessWidget {
   final Map<Mood, int> moodCounts;
 
@@ -126,7 +137,7 @@ class MoodCountChart extends StatelessWidget {
                               end: Alignment.topCenter,
                               colors: [
                                 colorScheme.primary,
-                                colorScheme.tertiary,
+                                colorScheme.secondary,
                               ],
                             ),
                             backDrawRodData: BackgroundBarChartRodData(

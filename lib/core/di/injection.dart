@@ -177,7 +177,10 @@ Future<void> configureDependencies() async {
     ),
   );
   getIt.registerFactory(
-    () => CustomThemeFormBloc(saveCustomTheme: getIt<SaveCustomTheme>()),
+    () => CustomThemeFormBloc(
+      saveCustomTheme: getIt<SaveCustomTheme>(),
+      appThemeCubit: getIt<AppThemeCubit>(),
+    ),
   );
 
   // --- analytics ---

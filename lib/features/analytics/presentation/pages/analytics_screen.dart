@@ -33,7 +33,6 @@ class AnalyticsScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         backgroundColor: colorScheme.surface,
         foregroundColor: colorScheme.onSurface,

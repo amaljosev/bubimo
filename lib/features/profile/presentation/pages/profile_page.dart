@@ -51,13 +51,8 @@ class ProfileAnalyticsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         title: const Text('Profile & Analytics'),
       ),

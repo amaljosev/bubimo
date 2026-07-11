@@ -12,20 +12,22 @@ import '../widgets/custom_theme_form/color_field_tile.dart';
 import '../widgets/custom_theme_form/font_picker_sheet.dart';
 import '../widgets/custom_theme_form/header_image_picker_field.dart';
 import '../widgets/custom_theme_form/home_preview_card.dart';
+import '../widgets/custom_theme_form/text_color_swatch_picker_sheet.dart';
 import '../widgets/custom_theme_form/theme_name_field.dart';
 
 /// Create/Edit Custom Theme screen.
 ///
 /// Pass [existingTheme] to open in EDIT mode (pre-fills every field and
-/// upserts the same theme id on save); omit it for CREATE mode, where
+/// upsert the same theme id on save); omit it for CREATE mode, where
 /// every color field is initialized from
 /// [BuiltInThemes.defaultTheme]'s colors per spec.
 ///
 /// The live Home Screen preview at the top is a pure function of the
 /// bloc's current [CustomThemeFormState] — it re-renders on every field
-/// change, and intentionally never touches [AppThemeCubit]/the app's
-/// real theme (see `HomePreviewCard`'s doc comment): saving here never
-/// auto-applies the theme.
+/// change. When editing a theme that's currently applied app-wide,
+/// tapping "Update Theme" also re-applies it live immediately (see
+/// `CustomThemeFormBloc._onSubmitted`) — no separate "Apply Theme" step
+/// needed for that case.
 class CustomThemeScreen extends StatelessWidget {
   final AppThemeData? existingTheme;
 
@@ -86,6 +88,33 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
     }
   }
 
+  Future<void> _confirmResetColors(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reset colors?'),
+        content: const Text(
+          'This sets all 5 colors back to the default palette for the '
+          'current mode. This can\'t be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      context.read<CustomThemeFormBloc>().add(const CustomThemeColorsReset());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<CustomThemeFormBloc, CustomThemeFormState>(
@@ -133,8 +162,11 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
             children: [
               HomePreviewCard(
                 primaryColor: state.primaryColor,
+                secondaryColor: state.secondaryColor,
+                surfaceColor: state.surfaceColor,
                 backgroundColor: state.backgroundColor,
-                accentColor: state.accentColor,
+                textColor: state.textColor,
+                isDark: state.isDark,
                 fontFamily: state.fontFamily,
                 headerImagePath: state.headerImagePath,
                 themeName: state.name,
@@ -147,6 +179,13 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                     .add(CustomThemeNameChanged(value)),
               ),
               const SizedBox(height: 20),
+              _DarkModeSwitcher(
+                isDark: state.isDark,
+                onChanged: (value) => context
+                    .read<CustomThemeFormBloc>()
+                    .add(CustomThemeDarkModeToggled(value)),
+              ),
+              const SizedBox(height: 20),
               HeaderImagePickerField(
                 imagePath: state.headerImagePath,
                 onImagePicked: (path) => context
@@ -157,8 +196,40 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                     .add(const CustomThemeHeaderImageCleared()),
               ),
               const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Colors',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  // Always available — not gated behind a contrast
+                  // warning — so the user has a one-tap way back to a
+                  // known-good palette at any time.
+                  TextButton.icon(
+                    onPressed: () => _confirmResetColors(context),
+                    icon: const Icon(Icons.restart_alt, size: 18),
+                    label: const Text('Reset Colors'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Tap any color below to change it. The preview above '
+                'updates instantly.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 8),
               ColorFieldTile(
-                label: 'Primary color',
+                label: 'Primary',
+                description:
+                    'Buttons, the floating action button, and the active '
+                    'tab indicator',
                 color: state.primaryColor,
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
@@ -166,7 +237,27 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
               ),
               const Divider(height: 1),
               ColorFieldTile(
-                label: 'Background color',
+                label: 'Secondary',
+                description:
+                    'Accent highlights, like the colored bar on diary entries',
+                color: state.secondaryColor,
+                onChanged: (color) => context
+                    .read<CustomThemeFormBloc>()
+                    .add(CustomThemeSecondaryColorChanged(color)),
+              ),
+              const Divider(height: 1),
+              ColorFieldTile(
+                label: 'Surface',
+                description: 'Cards, sheets, and app bars',
+                color: state.surfaceColor,
+                onChanged: (color) => context
+                    .read<CustomThemeFormBloc>()
+                    .add(CustomThemeSurfaceColorChanged(color)),
+              ),
+              const Divider(height: 1),
+              ColorFieldTile(
+                label: 'Background',
+                description: 'The main page background behind everything',
                 color: state.backgroundColor,
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
@@ -174,11 +265,11 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
               ),
               const Divider(height: 1),
               ColorFieldTile(
-                label: 'Accent color',
-                color: state.accentColor,
-                onChanged: (color) => context
-                    .read<CustomThemeFormBloc>()
-                    .add(CustomThemeAccentColorChanged(color)),
+                label: 'Text',
+                description: 'Titles, body text, and icons',
+                color: state.textColor,
+                warning: state.textColorWarning,
+                onTap: () => _openTextColorPicker(context, state),
               ),
               const SizedBox(height: 12),
               ListTile(
@@ -210,6 +301,121 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openTextColorPicker(
+    BuildContext context,
+    CustomThemeFormState state,
+  ) async {
+    final picked = await TextColorSwatchPickerSheet.show(
+      context,
+      initialColor: state.textColor,
+      backgroundColor: state.backgroundColor,
+      surfaceColor: state.surfaceColor,
+    );
+    if (picked != null && context.mounted) {
+      context
+          .read<CustomThemeFormBloc>()
+          .add(CustomThemeTextColorChanged(picked));
+    }
+  }
+}
+
+/// Light/Dark Mode switcher. Toggling this changes
+/// [CustomThemeFormState.isDark], which switches which of
+/// [CustomThemeFormState.lightPalette] / [CustomThemeFormState.darkPalette]
+/// is active — the live preview and every color field reflect that
+/// mode's OWN colors immediately.
+class _DarkModeSwitcher extends StatelessWidget {
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  const _DarkModeSwitcher({required this.isDark, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _ModeOption(
+              label: 'Light Mode',
+              icon: Icons.light_mode_outlined,
+              isSelected: !isDark,
+              onTap: () => onChanged(false),
+            ),
+          ),
+          Expanded(
+            child: _ModeOption(
+              label: 'Dark Mode',
+              icon: Icons.dark_mode_outlined,
+              isSelected: isDark,
+              onTap: () => onChanged(true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ModeOption({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: isSelected ? theme.colorScheme.primary : Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: isSelected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

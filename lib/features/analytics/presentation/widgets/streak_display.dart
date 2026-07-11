@@ -3,6 +3,19 @@
 import 'package:flutter/material.dart';
 
 /// Shows current streak and longest streak ever, side by side.
+///
+/// Accent colors are pulled from the active theme's [ColorScheme]
+/// rather than fixed Material colors (previously `Colors.deepOrange` /
+/// `Colors.amber.shade700`), so these cards follow whichever custom
+/// theme the user has applied — including the 5 colors they picked on
+/// the Create/Edit Custom Theme screen. [ColorScheme.error] anchors
+/// the "current streak" card (a warm, attention-drawing role in every
+/// theme, similar to what the fire icon implies) and
+/// [ColorScheme.secondary] anchors "longest streak" (the theme's own
+/// accent color) — `tertiary` is deliberately avoided here since this
+/// app's `theme_mapper.dart` never sets it for custom themes, so it
+/// would silently fall back to an untamed Material default color
+/// instead of reflecting the user's picks.
 class StreakDisplay extends StatelessWidget {
   final int currentStreak;
   final int longestStreak;
@@ -15,6 +28,8 @@ class StreakDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       children: [
         Expanded(
@@ -22,7 +37,7 @@ class StreakDisplay extends StatelessWidget {
             icon: Icons.local_fire_department_rounded,
             label: 'Current streak',
             value: currentStreak,
-            accent: Colors.deepOrange,
+            accent: colorScheme.error,
           ),
         ),
         const SizedBox(width: 12),
@@ -31,7 +46,7 @@ class StreakDisplay extends StatelessWidget {
             icon: Icons.emoji_events_rounded,
             label: 'Longest streak',
             value: longestStreak,
-            accent: Colors.amber.shade700,
+            accent: colorScheme.secondary,
           ),
         ),
       ],

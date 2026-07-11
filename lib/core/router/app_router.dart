@@ -8,6 +8,7 @@ import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.d
 import '../../../features/diary_entry/presentation/pages/diary_form_page.dart';
 import '../../../features/favorites/presentation/pages/favorites_page.dart';
 import '../../../features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
+import '../../../features/home/presentation/bloc/diary_list/diary_list_event.dart';
 import '../../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
 import '../../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_event.dart';
 import '../../../features/reminders/presentation/pages/reminder_settings_page.dart';
@@ -107,12 +108,20 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: AppRoutes.favorites,
-      // FavoritesPage reads the same shared DiaryListBloc singleton
-      // Diary/Timeline use. Same ancestor-reachability note as above —
-      // provided explicitly here since this route isn't nested under
-      // MainShell's tree.
-      builder: (context, state) =>
-          BlocProvider.value(value: getIt<DiaryListBloc>(), child: const FavoritesPage()),
+      // DiaryListBloc is registered as a FACTORY (see injection.dart),
+      // not a singleton — so `getIt<DiaryListBloc>()` here always
+      // builds a brand-new instance, starting at
+      // DiaryListStatus.initial, completely independent from whatever
+      // instance MainShell's Diary/Timeline tabs are using. FavoritesPage
+      // itself never dispatches an initial load (it only reacts to
+      // pull-to-refresh / returning from create-edit), so without the
+      // explicit `..add(...)` here this screen would sit on its loading
+      // spinner forever. Mirrors the same pattern already used just
+      // above for AppRoutes.reminderSettings.
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<DiaryListBloc>()..add(const LoadDiaryEntries()),
+        child: const FavoritesPage(),
+      ),
     ),
   ],
 );

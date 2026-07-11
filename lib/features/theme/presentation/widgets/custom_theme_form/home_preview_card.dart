@@ -13,10 +13,18 @@ import '../shared/theme_header_image.dart';
 /// Mirrors the real [HomePage] as closely as a fixed-height card
 /// allows: a header image with the "Diary" title sitting near its top
 /// (not a bottom-anchored caption), a gradient just strong enough to
-/// keep the title legible, an All/Favorites segmented pill below it,
-/// and a short stack of diary-entry-style rows — date column on the
-/// left, rounded accent-tinted card on the right with mood + title +
-/// preview text — instead of an abstract two-card grid.
+/// keep the title legible, an All/Favorites segmented pill below it, a
+/// short stack of diary-entry-style rows on a [surfaceColor]-tinted
+/// card, and a floating action button in [primaryColor] — added so
+/// users can see exactly how their Primary color renders on a real
+/// button, not just as an abstract swatch.
+///
+/// [isDark] is the user's explicit Light/Dark Mode choice, not derived
+/// from [backgroundColor]'s luminance — this preview is expected to
+/// render correctly even for an unusual combination (e.g. a light
+/// background explicitly marked Dark Mode mid-edit), since the point
+/// of a live preview is to show the user exactly what they're about to
+/// save, warnings and all.
 ///
 /// Deliberately does NOT build a real `ThemeData`/`Theme.of(context)`
 /// and does NOT touch [AppThemeCubit] — applying the theme globally
@@ -27,8 +35,11 @@ import '../shared/theme_header_image.dart';
 /// reflect instantly without any global side effect.
 class HomePreviewCard extends StatelessWidget {
   final RgbaColor primaryColor;
+  final RgbaColor secondaryColor;
+  final RgbaColor surfaceColor;
   final RgbaColor backgroundColor;
-  final RgbaColor accentColor;
+  final RgbaColor textColor;
+  final bool isDark;
   final String fontFamily;
   final String? headerImagePath;
   final String themeName;
@@ -36,8 +47,11 @@ class HomePreviewCard extends StatelessWidget {
   const HomePreviewCard({
     super.key,
     required this.primaryColor,
+    required this.secondaryColor,
+    required this.surfaceColor,
     required this.backgroundColor,
-    required this.accentColor,
+    required this.textColor,
+    required this.isDark,
     required this.fontFamily,
     required this.headerImagePath,
     required this.themeName,
@@ -68,58 +82,90 @@ class HomePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = backgroundColor.toColor();
     final primary = primaryColor.toColor();
-    final accent = accentColor.toColor();
-    final brightness =
-        bg.computeLuminance() < 0.5 ? Brightness.dark : Brightness.light;
-    final onSurface =
-        brightness == Brightness.dark ? Colors.white : Colors.black87;
+    final secondary = secondaryColor.toColor();
+    final surface = surfaceColor.toColor();
+    final onSurface = textColor.toColor();
     final onSurfaceMuted = onSurface.withValues(alpha: 0.6);
+    final onPrimary =
+        ThemeData.estimateBrightnessForColor(primary) == Brightness.dark
+            ? Colors.white
+            : Colors.black87;
 
     final textTheme = GoogleFonts.getTextTheme(
       fontFamily,
-      brightness == Brightness.dark
+      isDark
           ? ThemeData(brightness: Brightness.dark).textTheme
           : ThemeData(brightness: Brightness.light).textTheme,
-    );
+    ).apply(bodyColor: onSurface, displayColor: onSurface);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        height: 380,
+        height: 420,
         color: bg,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            _PreviewHeader(
-              imagePath: headerImagePath,
-              primaryColor: primary,
-              textTheme: textTheme,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _PreviewHeader(
+                  imagePath: headerImagePath,
+                  primaryColor: primary,
+                  textTheme: textTheme,
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: _PreviewSegmentedControl(
+                    primaryColor: primary,
+                    onSurface: onSurface,
+                    textTheme: textTheme,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 72),
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (final entry in _sampleEntries) ...[
+                        _PreviewDiaryRow(
+                          entry: entry,
+                          surfaceColor: surface,
+                          secondaryColor: secondary,
+                          onSurface: onSurface,
+                          onSurfaceMuted: onSurfaceMuted,
+                          textTheme: textTheme,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Center(
-              child: _PreviewSegmentedControl(
-                primaryColor: primary,
-                onSurface: onSurface,
-                textTheme: textTheme,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  for (final entry in _sampleEntries) ...[
-                    _PreviewDiaryRow(
-                      entry: entry,
-                      accentColor: accent,
-                      onSurface: onSurface,
-                      onSurfaceMuted: onSurfaceMuted,
-                      textTheme: textTheme,
+            // Floating action button preview — shows exactly how
+            // Primary color renders as a real, tappable-looking
+            // button, per the requirement that users be able to see
+            // button colors directly rather than only inferring them
+            // from a swatch.
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
                     ),
-                    const SizedBox(height: 8),
                   ],
-                ],
+                ),
+                child: Icon(Icons.add, color: onPrimary),
               ),
             ),
           ],
@@ -264,18 +310,21 @@ class _PreviewSegmentedControl extends StatelessWidget {
 }
 
 /// A single diary row: bold date number + weekday on the left, a
-/// rounded accent-tinted card on the right with an optional mood row,
-/// a title, and a 2-line preview — matching [DiaryListItem]'s layout.
+/// rounded surface-tinted card on the right (with a secondary-color
+/// accent bar) showing an optional mood row, a title, and a 2-line
+/// preview — matching [DiaryListItem]'s layout.
 class _PreviewDiaryRow extends StatelessWidget {
   final _PreviewEntry entry;
-  final Color accentColor;
+  final Color surfaceColor;
+  final Color secondaryColor;
   final Color onSurface;
   final Color onSurfaceMuted;
   final TextTheme textTheme;
 
   const _PreviewDiaryRow({
     required this.entry,
-    required this.accentColor,
+    required this.surfaceColor,
+    required this.secondaryColor,
     required this.onSurface,
     required this.onSurfaceMuted,
     required this.textTheme,
@@ -309,8 +358,11 @@ class _PreviewDiaryRow extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.18),
+              color: surfaceColor,
               borderRadius: BorderRadius.circular(14),
+              border: Border(
+                left: BorderSide(color: secondaryColor, width: 3),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

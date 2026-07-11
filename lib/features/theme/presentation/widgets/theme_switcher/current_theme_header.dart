@@ -70,7 +70,7 @@ class CurrentThemeHeader extends StatelessWidget {
                 ThemeColorDotRow(
                   colors: [
                     theme.primaryColor.toColor(),
-                    theme.accentColor.toColor(),
+                    theme.secondaryColor.toColor(),
                   ],
                   dotSize: 22,
                 ),

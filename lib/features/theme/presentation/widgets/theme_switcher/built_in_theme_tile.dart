@@ -60,7 +60,7 @@ class BuiltInThemeTile extends StatelessWidget {
           : ThemeColorGradientBlock(
               colors: [
                 theme.primaryColor.toColor(),
-                theme.accentColor.toColor(),
+                theme.secondaryColor.toColor(),
               ],
             ),
       titleAndSubtitle: Column(
@@ -87,7 +87,7 @@ class BuiltInThemeTile extends StatelessWidget {
           : ThemeColorDotRow(
               colors: [
                 theme.primaryColor.toColor(),
-                theme.accentColor.toColor(),
+                theme.secondaryColor.toColor(),
               ],
             ),
     );

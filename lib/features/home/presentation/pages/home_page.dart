@@ -80,8 +80,7 @@ class _HomeViewState extends State<_HomeView> {
             expandedHeight: headerImagePath != null
                 ? _headerExpandedHeight
                 : kToolbarHeight,
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
+     
             centerTitle: true,
             // No back button on a tab root, and no theme-agnostic
             // elevation shadow riding on top of the header image.

@@ -64,6 +64,32 @@ class RgbaColor extends Equatable {
   /// boundary.
   Color toColor() => Color.fromRGBO(red, green, blue, opacity);
 
+  /// Relative luminance (WCAG-style, 0.0 = black, 1.0 = white),
+  /// delegating to Flutter's own [Color.computeLuminance] so this
+  /// matches exactly what `ThemeData.estimateBrightnessForColor` and
+  /// the rest of the app already use — one formula, not a
+  /// hand-rolled second one that could drift from it.
+  double get luminance => toColor().computeLuminance();
+
+  /// True when this color reads as "dark" by the same luminance
+  /// threshold Flutter's `ThemeData.estimateBrightnessForColor` uses
+  /// internally (0.5). Used by contrast validation (e.g. rejecting a
+  /// near-black text color in Dark Mode) and by anything that needs a
+  /// quick light/dark classification of an arbitrary picked color.
+  bool get isDark => luminance < 0.5;
+
+  /// WCAG-style contrast ratio against [other], in the 1.0 (no
+  /// contrast, identical luminance) to 21.0 (max, pure black vs pure
+  /// white) range. Used to validate that a picked text color stays
+  /// readable against whichever surface it will render on.
+  double contrastRatioWith(RgbaColor other) {
+    final l1 = luminance;
+    final l2 = other.luminance;
+    final lighter = l1 > l2 ? l1 : l2;
+    final darker = l1 > l2 ? l2 : l1;
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
   RgbaColor copyWith({int? red, int? green, int? blue, double? opacity}) {
     return RgbaColor(
       red: red ?? this.red,

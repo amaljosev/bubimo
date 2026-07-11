@@ -18,15 +18,15 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  // Bumped 6 -> 7: fixes `bg_overlay_color` to be nullable. It was
-  // originally added as `NOT NULL DEFAULT 'white'` (version 2), but
-  // NULL is now a meaningful value ("Auto" — tint follows the app
-  // theme; see OverlayTintUtils/DiaryEntriesTable). SQLite can't
-  // ALTER COLUMN to relax NOT NULL, so this rebuilds the table (see
-  // DiaryEntriesTable.migrateOverlayColorToNullableSql), translating
-  // existing 'white' rows to NULL since that value was never a real
-  // per-entry choice under the old code.
-  static const int _databaseVersion = 7;
+  // Bumped 8 -> 9: `custom_themes` gains a second, independent set of
+  // 5 color columns (`*_dark` suffix — primary_color_dark etc.) so a
+  // single custom theme can store its own Light Mode palette AND its
+  // own Dark Mode palette at once, instead of one flat set of colors
+  // that gets overwritten every time the Dark Mode toggle is flipped
+  // on the Create/Edit Custom Theme screen — see CustomThemesTable's
+  // doc comment. Follows the same drop+recreate precedent as the
+  // v2->v3, v5->v6, and v7->v8 migrations on this table.
+  static const int _databaseVersion = 9;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -95,6 +95,16 @@ class AppDatabase {
     for (final sql in DiaryEntriesTable.migrateOverlayColorToNullableSql) {
       await db.execute(sql);
     }
+  }
+
+  if (oldVersion < 8) {
+    await db.execute(CustomThemesTable.dropTableSql);
+    await db.execute(CustomThemesTable.createTableSql);
+  }
+
+  if (oldVersion < 9) {
+    await db.execute(CustomThemesTable.dropTableSql);
+    await db.execute(CustomThemesTable.createTableSql);
   }
 }
 
