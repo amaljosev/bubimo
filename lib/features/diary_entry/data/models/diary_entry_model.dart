@@ -1,7 +1,6 @@
 // lib/features/diary_entry/data/models/diary_entry_model.dart
 
 import 'dart:convert';
-
 import '../../../../core/database/tables/diary_entries_table.dart';
 import '../../../../core/utils/date_utils.dart';
 import '../../domain/entities/diary_entry.dart';

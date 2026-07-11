@@ -8,12 +8,13 @@ import 'package:flutter/material.dart';
 ///
 /// `bgOverlayColor` is nullable: `null` ("Auto") means the user hasn't
 /// explicitly chosen a tint for this entry, so the tint is derived from
-/// the app's currently active theme via [themeBrightness] — a light
-/// app theme gets a dark tint, a dark app theme gets a light tint,
-/// mirroring the same light/dark-adaptive treatment already applied to
-/// entry text color. An explicit `'white'`/`'black'` value always wins
-/// over the theme, since it reflects a deliberate per-entry choice made
-/// in the overlay settings sheet.
+/// the app's currently active theme via [themeBrightness] so it stays
+/// legible against the entry's text color. A dark app theme renders
+/// entry text in white, so the tint auto-resolves to black/dark for
+/// contrast; a light app theme renders text dark, so the tint
+/// auto-resolves to white/light. An explicit `'white'`/`'black'` value
+/// always wins over the theme, since it reflects a deliberate per-entry
+/// choice made in the overlay settings sheet.
 ///
 /// Previously duplicated identically in:
 ///   - `DiaryFormPage._resolveOverlayTintColor` (+ inline `BlendMode`
@@ -55,11 +56,14 @@ abstract final class OverlayTintUtils {
     );
   }
 
-  /// Light app theme → dark tint (keeps text readable against what's
-  /// presumed to be a lighter overall palette); dark app theme → light
-  /// tint. Mirrors the same rule already applied to entry text color
-  /// when the user selects a dark app theme.
+  /// Dark app theme means entry text renders in a light/white color
+  /// (see the app's existing light/dark-adaptive text color rule), so
+  /// the background tint must go dark to keep that light text legible
+  /// against it — the tint and the text need contrast with EACH OTHER,
+  /// not with the theme's own surface color. Light app theme (dark
+  /// text) mirrors this: the tint goes light so dark text stays
+  /// legible.
   static String _autoColorName(Brightness themeBrightness) {
-    return themeBrightness == Brightness.dark ? 'white' : 'black';
+    return themeBrightness == Brightness.dark ? 'black' : 'white';
   }
 }

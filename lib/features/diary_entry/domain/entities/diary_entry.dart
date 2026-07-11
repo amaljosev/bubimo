@@ -114,6 +114,11 @@ class DiaryEntry extends Equatable {
   /// Nullable fields that should be explicitly clearable (set back to
   /// null) use a sentinel-free approach here for simplicity — pass the
   /// current value explicitly if you don't want to change a field.
+  /// [bgOverlayColor] is the one exception: `null` is itself a
+  /// meaningful, commonly-set value ("Auto" — tint follows the app
+  /// theme, see `OverlayTintUtils`), not just "leave unchanged", so it
+  /// needs the explicit [clearOverlayColor] flag below to distinguish
+  /// "don't touch this field" from "set it back to Auto".
   DiaryEntry copyWith({
     String? id,
     String? title,
@@ -128,6 +133,7 @@ class DiaryEntry extends Equatable {
     String? bgLocalPath,
     double? bgOverlayOpacity,
     String? bgOverlayColor,
+    bool clearOverlayColor = false,
     List<String>? images,
     List<String>? tags,
     List<OverlayImage>? overlayImages,
@@ -153,7 +159,9 @@ class DiaryEntry extends Equatable {
       bgGalleryImagePath: bgGalleryImagePath ?? this.bgGalleryImagePath,
       bgLocalPath: bgLocalPath ?? this.bgLocalPath,
       bgOverlayOpacity: bgOverlayOpacity ?? this.bgOverlayOpacity,
-      bgOverlayColor: bgOverlayColor ?? this.bgOverlayColor,
+      bgOverlayColor: clearOverlayColor
+          ? null
+          : (bgOverlayColor ?? this.bgOverlayColor),
       images: images ?? this.images,
       tags: tags ?? this.tags,
       overlayImages: overlayImages ?? this.overlayImages,

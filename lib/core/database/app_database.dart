@@ -18,14 +18,15 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  // Bumped 5 -> 6: rebuilds `custom_themes` for the new Theme feature.
-  // Colors are now stored as full RGBA strings (`'r,g,b,o'`, see
-  // RgbaColor.toStorageString()) instead of hex, and a new `type`
-  // column distinguishes theme kinds. Existing custom theme rows use
-  // the old hex-color schema, which isn't compatible with the new RGBA
-  // format, so this migration drops and recreates the table (see
-  // CustomThemesTable doc comment for the rationale).
-  static const int _databaseVersion = 6;
+  // Bumped 6 -> 7: fixes `bg_overlay_color` to be nullable. It was
+  // originally added as `NOT NULL DEFAULT 'white'` (version 2), but
+  // NULL is now a meaningful value ("Auto" — tint follows the app
+  // theme; see OverlayTintUtils/DiaryEntriesTable). SQLite can't
+  // ALTER COLUMN to relax NOT NULL, so this rebuilds the table (see
+  // DiaryEntriesTable.migrateOverlayColorToNullableSql), translating
+  // existing 'white' rows to NULL since that value was never a real
+  // per-entry choice under the old code.
+  static const int _databaseVersion = 7;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -88,6 +89,12 @@ class AppDatabase {
   if (oldVersion < 6) {
     await db.execute(CustomThemesTable.dropTableSql);
     await db.execute(CustomThemesTable.createTableSql);
+  }
+
+  if (oldVersion < 7) {
+    for (final sql in DiaryEntriesTable.migrateOverlayColorToNullableSql) {
+      await db.execute(sql);
+    }
   }
 }
 

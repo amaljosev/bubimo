@@ -117,6 +117,13 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             bgLocalPath: entry.bgLocalPath,
             bgOverlayOpacity: entry.bgOverlayOpacity,
             bgOverlayColor: entry.bgOverlayColor,
+            // entry.bgOverlayColor is null for any Auto entry — copyWith's
+            // `?? this.bgOverlayColor` fallback would only coincidentally
+            // preserve that (since the initial state also defaults to
+            // null); make it explicit so loading an Auto entry always
+            // clears any stale color rather than depending on that
+            // coincidence.
+            clearOverlayColor: entry.bgOverlayColor == null,
           ),
         );
       },
@@ -365,6 +372,11 @@ class DiaryFormBloc extends Bloc<DiaryFormEvent, DiaryFormState> {
             bgLocalPath: state.bgLocalPath,
             bgOverlayOpacity: state.bgOverlayOpacity,
             bgOverlayColor: state.bgOverlayColor,
+            // `state.bgOverlayColor == null` means Auto was chosen —
+            // `copyWith`'s plain `??` fallback would otherwise silently
+            // keep `_loadedEntry`'s previous explicit color instead of
+            // clearing back to Auto, so route through the explicit flag.
+            clearOverlayColor: state.bgOverlayColor == null,
             preview: preview,
             wordCount: wordCount,
             updatedAt: now,
