@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/entities/rgba_color.dart';
 
 /// sync with `CustomThemeFormState.kMinTextContrastRatio`. Duplicated
@@ -32,16 +33,23 @@ const double _kMinTextContrastRatio = 4.5;
 /// non-blocking warning banner on the form (see
 /// `CustomThemeFormState.textColorWarning`) is what surfaces that to
 /// the user, not this sheet.
+///
+/// [isDark] selects which mode-appropriate candidate palette
+/// ([AppColors.textLight] vs [AppColors.textDark]) is tried first —
+/// pass `CustomThemeFormState.isDark` so the swatches offered match
+/// the theme's current light/dark mode.
 class TextColorSwatchPickerSheet extends StatelessWidget {
   final RgbaColor initialColor;
   final RgbaColor backgroundColor;
   final RgbaColor surfaceColor;
+  final bool isDark;
 
   const TextColorSwatchPickerSheet({
     super.key,
     required this.initialColor,
     required this.backgroundColor,
     required this.surfaceColor,
+    required this.isDark,
   });
 
   static Future<RgbaColor?> show(
@@ -49,6 +57,7 @@ class TextColorSwatchPickerSheet extends StatelessWidget {
     required RgbaColor initialColor,
     required RgbaColor backgroundColor,
     required RgbaColor surfaceColor,
+    required bool isDark,
   }) {
     return showModalBottomSheet<RgbaColor>(
       context: context,
@@ -58,46 +67,24 @@ class TextColorSwatchPickerSheet extends StatelessWidget {
         initialColor: initialColor,
         backgroundColor: backgroundColor,
         surfaceColor: surfaceColor,
+        isDark: isDark,
       ),
     );
   }
 
-  /// The full curated candidate set — spans near-black/near-white
-  /// neutrals plus a range of mid-tone hues, so there's always a
-  /// reasonable spread of options that pass contrast regardless of
-  /// whether the background/surface is light or dark.
-  static const List<RgbaColor> _candidates = [
-    // Neutrals — near-black through near-white.
-    RgbaColor(red: 10, green: 10, blue: 12),
-    RgbaColor(red: 24, green: 24, blue: 27),
-    RgbaColor(red: 38, green: 38, blue: 42),
-    RgbaColor(red: 55, green: 55, blue: 60),
-    RgbaColor(red: 90, green: 90, blue: 96),
-    RgbaColor(red: 130, green: 130, blue: 136),
-    RgbaColor(red: 180, green: 180, blue: 186),
-    RgbaColor(red: 225, green: 225, blue: 230),
-    RgbaColor(red: 245, green: 245, blue: 248),
-    RgbaColor(red: 255, green: 255, blue: 255),
-    // Warm neutrals.
-    RgbaColor(red: 32, green: 28, blue: 44),
-    RgbaColor(red: 43, green: 24, blue: 20),
-    RgbaColor(red: 40, green: 24, blue: 32),
-    RgbaColor(red: 228, green: 229, blue: 245),
-    // Hues — deep/dark variants (readable on light backgrounds).
-    RgbaColor(red: 20, green: 40, blue: 90),
-    RgbaColor(red: 80, green: 20, blue: 30),
-    RgbaColor(red: 20, green: 70, blue: 45),
-    RgbaColor(red: 90, green: 50, blue: 10),
-    RgbaColor(red: 70, green: 20, blue: 80),
-    RgbaColor(red: 10, green: 60, blue: 70),
-    // Hues — light/pastel variants (readable on dark backgrounds).
-    RgbaColor(red: 200, green: 220, blue: 255),
-    RgbaColor(red: 255, green: 205, blue: 210),
-    RgbaColor(red: 205, green: 245, blue: 220),
-    RgbaColor(red: 255, green: 225, blue: 180),
-    RgbaColor(red: 235, green: 205, blue: 255),
-    RgbaColor(red: 190, green: 240, blue: 245),
-  ];
+  /// The curated candidate set for the current mode — [AppColors.
+  /// textDark] (near-white neutrals + pastel hues) when [isDark],
+  /// otherwise [AppColors.textLight] (near-black neutrals + deep
+  /// hues). Mode-matched candidates are tried first since they're the
+  /// intended fit; if none pass contrast (e.g. an unusual Background/
+  /// Surface combination), the opposite-mode palette is included as a
+  /// fallback so the user isn't left with an empty grid — contrast
+  /// filtering below still gates what's actually shown either way.
+  List<RgbaColor> get _candidates {
+    final primary = isDark ? AppColors.textDark : AppColors.textLight;
+    final fallback = isDark ? AppColors.textLight : AppColors.textDark;
+    return [...primary, ...fallback];
+  }
 
   bool _passesContrast(RgbaColor candidate) {
     return candidate.contrastRatioWith(backgroundColor) >=

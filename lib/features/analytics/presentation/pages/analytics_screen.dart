@@ -68,7 +68,22 @@ class _AnalyticsScreenView extends StatelessWidget {
               onRefresh: () async =>
                   context.read<AnalyticsBloc>().add(const LoadAnalytics()),
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                // Bottom padding needs more than the flat 16 every other
+                // side uses: MoodCountChart (the bar chart) is the last
+                // item, and a flat 16px left it sitting right at — or
+                // clipped by — the bottom of the viewport/safe area with
+                // no breathing room, since this screen has no bottom nav
+                // bar of its own to account for (it's pushed from
+                // Settings, not a MainShell tab) but devices with a
+                // gesture-nav home indicator still need that inset
+                // cleared. 32 flat + the device's own bottom safe-area
+                // inset guarantees the chart always fully clears both.
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  32 + MediaQuery.of(context).padding.bottom,
+                ),
                 children: [
                   StreakDisplay(
                     currentStreak: state.currentStreak,

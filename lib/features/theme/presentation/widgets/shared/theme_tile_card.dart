@@ -61,6 +61,7 @@ class ThemeTileCard extends StatelessWidget {
     );
 
     return Card(
+      color: colorScheme.surface,
       margin: const EdgeInsets.symmetric(
         horizontal: ThemeSpacing.lg,
         vertical: 6,

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/navigation/premium_bottom_nav_bar.dart' show kNavBarHeight;
 import '../../../../core/widgets/error_screen.dart';
 import '../../../../core/widgets/loading_screen.dart';
 import '../../../analytics/presentation/bloc/analytics/analytics_bloc.dart';
@@ -102,7 +103,27 @@ class ProfileAnalyticsScreen extends StatelessWidget {
         context.read<AnalyticsBloc>().add(const LoadAnalytics());
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        // This screen is a MainShell tab, and MainShell mounts its
+        // Scaffold with extendBody: true so NotchedNavBar can float
+        // over tab content with its notch/FAB — but that also means
+        // this content otherwise renders FULL-HEIGHT behind the bar
+        // with no automatic inset, unlike a normal Scaffold with a
+        // bottomNavigationBar. A flat 24px bottom padding left the
+        // last card (the mood chart) and its "Less/More" legend
+        // partially hidden under the bar. kNavBarHeight (the bar's
+        // own flat-surface height, not counting the FAB's protrusion
+        // above it — the FAB only overlaps a narrow centered strip, not
+        // full-width scroll content) plus a small breathing-room
+        // margin plus the device's own safe-area inset (NotchedNavBar
+        // applies SafeArea only to ITS OWN content, not to whatever
+        // scrolls behind it) together guarantee the last item always
+        // fully clears the bar.
+        padding: EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          24 + kNavBarHeight + MediaQuery.of(context).padding.bottom,
+        ),
         children: [
           if (profileState.profile != null)
             ProfileHeader(

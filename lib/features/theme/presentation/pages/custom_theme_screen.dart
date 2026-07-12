@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/built_in_themes.dart';
 import '../../domain/entities/app_theme_data.dart';
 import '../bloc/custom_theme_form/custom_theme_form_bloc.dart';
@@ -15,19 +16,6 @@ import '../widgets/custom_theme_form/home_preview_card.dart';
 import '../widgets/custom_theme_form/text_color_swatch_picker_sheet.dart';
 import '../widgets/custom_theme_form/theme_name_field.dart';
 
-/// Create/Edit Custom Theme screen.
-///
-/// Pass [existingTheme] to open in EDIT mode (pre-fills every field and
-/// upsert the same theme id on save); omit it for CREATE mode, where
-/// every color field is initialized from
-/// [BuiltInThemes.defaultTheme]'s colors per spec.
-///
-/// The live Home Screen preview at the top is a pure function of the
-/// bloc's current [CustomThemeFormState] — it re-renders on every field
-/// change. When editing a theme that's currently applied app-wide,
-/// tapping "Update Theme" also re-applies it live immediately (see
-/// `CustomThemeFormBloc._onSubmitted`) — no separate "Apply Theme" step
-/// needed for that case.
 class CustomThemeScreen extends StatelessWidget {
   final AppThemeData? existingTheme;
 
@@ -88,30 +76,27 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
     }
   }
 
-  Future<void> _confirmResetColors(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reset colors?'),
-        content: const Text(
-          'This sets all 5 colors back to the default palette for the '
-          'current mode. This can\'t be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
+  /// Opens the curated, contrast-filtered swatch picker for the Text
+  /// color field — routed via [ColorFieldTile.onTap] rather than the
+  /// default freeform [RgbaColorPickerSheet], since text color is
+  /// constrained to pre-vetted options that already pass contrast
+  /// against the current Background/Surface colors (see
+  /// `TextColorSwatchPickerSheet`).
+  Future<void> _openTextColorPicker(
+    BuildContext context,
+    CustomThemeFormState state,
+  ) async {
+    final picked = await TextColorSwatchPickerSheet.show(
+      context,
+      initialColor: state.textColor,
+      backgroundColor: state.backgroundColor,
+      surfaceColor: state.surfaceColor,
+      isDark: state.isDark,
     );
-
-    if (confirmed == true && context.mounted) {
-      context.read<CustomThemeFormBloc>().add(const CustomThemeColorsReset());
+    if (picked != null && context.mounted) {
+      context
+          .read<CustomThemeFormBloc>()
+          .add(CustomThemeTextColorChanged(picked));
     }
   }
 
@@ -169,7 +154,6 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                 isDark: state.isDark,
                 fontFamily: state.fontFamily,
                 headerImagePath: state.headerImagePath,
-                themeName: state.name,
               ),
               const SizedBox(height: 24),
               ThemeNameField(
@@ -196,25 +180,11 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                     .add(const CustomThemeHeaderImageCleared()),
               ),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Colors',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+              Text(
+                'Colors',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                  ),
-                  // Always available — not gated behind a contrast
-                  // warning — so the user has a one-tap way back to a
-                  // known-good palette at any time.
-                  TextButton.icon(
-                    onPressed: () => _confirmResetColors(context),
-                    icon: const Icon(Icons.restart_alt, size: 18),
-                    label: const Text('Reset Colors'),
-                  ),
-                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -231,6 +201,10 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                     'Buttons, the floating action button, and the active '
                     'tab indicator',
                 color: state.primaryColor,
+                presets: AppColors.forRole(
+                  AppColorRole.primary,
+                  isDark: state.isDark,
+                ),
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemePrimaryColorChanged(color)),
@@ -241,6 +215,10 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                 description:
                     'Accent highlights, like the colored bar on diary entries',
                 color: state.secondaryColor,
+                presets: AppColors.forRole(
+                  AppColorRole.secondary,
+                  isDark: state.isDark,
+                ),
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemeSecondaryColorChanged(color)),
@@ -250,6 +228,10 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                 label: 'Surface',
                 description: 'Cards, sheets, and app bars',
                 color: state.surfaceColor,
+                presets: AppColors.forRole(
+                  AppColorRole.surface,
+                  isDark: state.isDark,
+                ),
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemeSurfaceColorChanged(color)),
@@ -259,6 +241,10 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                 label: 'Background',
                 description: 'The main page background behind everything',
                 color: state.backgroundColor,
+                presets: AppColors.forRole(
+                  AppColorRole.background,
+                  isDark: state.isDark,
+                ),
                 onChanged: (color) => context
                     .read<CustomThemeFormBloc>()
                     .add(CustomThemeBackgroundColorChanged(color)),
@@ -297,36 +283,42 @@ class _CustomThemeScreenViewState extends State<_CustomThemeScreenView> {
                       )
                     : Text(widget.isEditing ? 'Update Theme' : 'Save Theme'),
               ),
+              if (!state.canSubmit && state.textColorWarning != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Fix the text color issue above before saving.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () => context
+                        .read<CustomThemeFormBloc>()
+                        .add(const CustomThemeColorsReset()),
+                    icon: const Icon(Icons.restart_alt, size: 18),
+                    label: Text(
+                      state.isDark
+                          ? 'Reset to default dark colors'
+                          : 'Reset to default light colors',
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );
       },
     );
   }
-
-  Future<void> _openTextColorPicker(
-    BuildContext context,
-    CustomThemeFormState state,
-  ) async {
-    final picked = await TextColorSwatchPickerSheet.show(
-      context,
-      initialColor: state.textColor,
-      backgroundColor: state.backgroundColor,
-      surfaceColor: state.surfaceColor,
-    );
-    if (picked != null && context.mounted) {
-      context
-          .read<CustomThemeFormBloc>()
-          .add(CustomThemeTextColorChanged(picked));
-    }
-  }
 }
 
 /// Light/Dark Mode switcher. Toggling this changes
-/// [CustomThemeFormState.isDark], which switches which of
-/// [CustomThemeFormState.lightPalette] / [CustomThemeFormState.darkPalette]
-/// is active — the live preview and every color field reflect that
-/// mode's OWN colors immediately.
+/// [CustomThemeFormState.isDark], which the live preview reflects
+/// immediately and which re-evaluates the Text color's contrast
+/// validation against the newly selected mode.
 class _DarkModeSwitcher extends StatelessWidget {
   final bool isDark;
   final ValueChanged<bool> onChanged;

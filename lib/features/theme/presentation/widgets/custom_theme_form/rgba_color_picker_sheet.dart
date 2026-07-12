@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/entities/rgba_color.dart';
 
 /// A reusable RGBA color picker shown in a modal bottom sheet.
@@ -13,19 +14,35 @@ import '../../../domain/entities/rgba_color.dart';
 ///
 /// Built entirely from stock Flutter widgets (Slider with a custom
 /// gradient track, CustomPainter checkerboard for opacity preview) —
-/// no external color-picker package. Reused for the primary, background,
-/// and accent color slots on the Create Custom Theme screen.
+/// no external color-picker package. Reused for the primary, secondary,
+/// surface, and background color slots on the Create Custom Theme
+/// screen.
+///
+/// [presets] drives the "PRESETS" swatch row and MUST be supplied by
+/// the caller — pulled from [AppColors] via `AppColors.forRole`, keyed
+/// to whichever color role this instance is picking for and the
+/// theme's current light/dark mode (e.g.
+/// `AppColors.forRole(AppColorRole.primary, isDark: state.isDark)`
+/// for the Primary field). This sheet intentionally has no built-in
+/// default preset list: a single generic list was previously reused
+/// for every color role, which meant e.g. the Surface picker offered
+/// saturated brand colors that make poor surfaces. Centralizing the
+/// *palettes* in [AppColors] while keeping *presentation* here is what
+/// lets each field show swatches appropriate to its actual purpose and
+/// mode.
 ///
 /// Returns the picked [RgbaColor] via `Navigator.pop`, or `null` if the
 /// user dismisses without confirming.
 class RgbaColorPickerSheet extends StatefulWidget {
   final String label;
   final RgbaColor initialColor;
+  final List<RgbaColor> presets;
 
   const RgbaColorPickerSheet({
     super.key,
     required this.label,
     required this.initialColor,
+    required this.presets,
   });
 
   /// Convenience launcher — shows the sheet and returns the picked
@@ -34,6 +51,7 @@ class RgbaColorPickerSheet extends StatefulWidget {
     BuildContext context, {
     required String label,
     required RgbaColor initialColor,
+    required List<RgbaColor> presets,
   }) {
     return showModalBottomSheet<RgbaColor>(
       context: context,
@@ -42,6 +60,7 @@ class RgbaColorPickerSheet extends StatefulWidget {
       builder: (_) => RgbaColorPickerSheet(
         label: label,
         initialColor: initialColor,
+        presets: presets,
       ),
     );
   }
@@ -54,30 +73,6 @@ class _RgbaColorPickerSheetState extends State<RgbaColorPickerSheet> {
   late HSVColor _hsv;
   late double _opacity;
   late TextEditingController _hexController;
-
-  // Preset palette for quick selection — a mix of saturated brand-ish
-  // colors and light/dark neutrals, covering common primary/background/
-  // accent picks.
-  static const List<Color> _presets = [
-    Color(0xFF1976D2),
-    Color(0xFF7B1FA2),
-    Color(0xFF2E7D32),
-    Color(0xFFF57C00),
-    Color(0xFFD32F2F),
-    Color(0xFF00897B),
-    Color(0xFF5D4037),
-    Color(0xFF455A64),
-    Color(0xFFFFFFFF),
-    Color(0xFFF5F5F5),
-    Color(0xFF212121),
-    Color(0xFFE3F2FD),
-    Color(0xFFFFF3E0),
-    Color(0xFFE8F5E9),
-    Color(0xFFF3E5F5),
-    Color(0xFF90CAF9),
-    Color(0xFFB39DDB),
-    Color(0xFFA5D6A7),
-  ];
 
   @override
   void initState() {
@@ -319,8 +314,15 @@ class _RgbaColorPickerSheetState extends State<RgbaColorPickerSheet> {
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: _presets.map((c) {
-                  final isSel = c.toARGB32() == selected.toARGB32();
+                children: widget.presets.map((preset) {
+                  final c = preset.toColor();
+                  // Compare RGB only (ignore opacity) so a preset still
+                  // shows as selected regardless of the current opacity
+                  // slider value — presets represent hue/tone choices,
+                  // not a fixed opacity.
+                  final isSel = c.r == selected.r &&
+                      c.g == selected.g &&
+                      c.b == selected.b;
                   return GestureDetector(
                     onTap: () => _setHsv(HSVColor.fromColor(c)),
                     child: AnimatedContainer(

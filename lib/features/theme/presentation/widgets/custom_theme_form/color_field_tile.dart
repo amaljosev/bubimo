@@ -31,6 +31,17 @@ import 'rgba_color_picker_sheet.dart';
 /// readability problem (see `CustomThemeFormState.textColorWarning`)
 /// right where the user is about to act on it. This warning is now
 /// purely informational: it never blocks saving the theme.
+///
+/// [presets] is the curated swatch list shown in the default picker's
+/// "PRESETS" row — pulled from `AppColors.forRole` by the caller and
+/// keyed to both this field's color role and the theme's current
+/// light/dark mode (e.g. `AppColors.forRole(AppColorRole.primary,
+/// isDark: state.isDark)` for the Primary tile). Required whenever
+/// [onChanged] is used (i.e. the default [RgbaColorPickerSheet] path);
+/// unused when [onTap] overrides the picker entirely, since the caller
+/// owns preset selection in that case (see the Text field, which uses
+/// `AppColors.textLight`/`AppColors.textDark` inside
+/// `TextColorSwatchPickerSheet` instead).
 class ColorFieldTile extends StatelessWidget {
   final String label;
   final String? description;
@@ -38,6 +49,7 @@ class ColorFieldTile extends StatelessWidget {
   final ValueChanged<RgbaColor>? onChanged;
   final VoidCallback? onTap;
   final String? warning;
+  final List<RgbaColor>? presets;
 
   const ColorFieldTile({
     super.key,
@@ -47,9 +59,14 @@ class ColorFieldTile extends StatelessWidget {
     this.onChanged,
     this.onTap,
     this.warning,
+    this.presets,
   }) : assert(
           onChanged != null || onTap != null,
           'Provide either onChanged (default picker) or onTap (custom picker).',
+        ),
+        assert(
+          onChanged == null || presets != null,
+          'presets is required when using the default picker (onChanged).',
         );
 
   Future<void> _openDefaultPicker(BuildContext context) async {
@@ -57,6 +74,7 @@ class ColorFieldTile extends StatelessWidget {
       context,
       label: label,
       initialColor: color,
+      presets: presets!,
     );
     if (picked != null) onChanged?.call(picked);
   }

@@ -2,37 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../../../domain/entities/rgba_color.dart';
 import '../shared/theme_header_image.dart';
 
-/// A miniature, self-contained mock-up of the Home Screen (Diary tab),
-/// themed entirely from the in-memory field values currently being
-/// edited on the Create Custom Theme screen.
-///
-/// Mirrors the real [HomePage] as closely as a fixed-height card
-/// allows: a header image with the "Diary" title sitting near its top
-/// (not a bottom-anchored caption), a gradient just strong enough to
-/// keep the title legible, an All/Favorites segmented pill below it, a
-/// short stack of diary-entry-style rows on a [surfaceColor]-tinted
-/// card, and a floating action button in [primaryColor] — added so
-/// users can see exactly how their Primary color renders on a real
-/// button, not just as an abstract swatch.
-///
-/// [isDark] is the user's explicit Light/Dark Mode choice, not derived
-/// from [backgroundColor]'s luminance — this preview is expected to
-/// render correctly even for an unusual combination (e.g. a light
-/// background explicitly marked Dark Mode mid-edit), since the point
-/// of a live preview is to show the user exactly what they're about to
-/// save, warnings and all.
-///
-/// Deliberately does NOT build a real `ThemeData`/`Theme.of(context)`
-/// and does NOT touch [AppThemeCubit] — applying the theme globally
-/// happens only when the user later taps "Apply Theme" back on the
-/// Theme Switcher screen (per spec: "Saving a theme should not
-/// automatically apply it"). This widget instead wraps its own content
-/// in a local `Theme` override scoped to just this card, so live edits
-/// reflect instantly without any global side effect.
+
 class HomePreviewCard extends StatelessWidget {
   final RgbaColor primaryColor;
   final RgbaColor secondaryColor;
@@ -42,7 +15,6 @@ class HomePreviewCard extends StatelessWidget {
   final bool isDark;
   final String fontFamily;
   final String? headerImagePath;
-  final String themeName;
 
   const HomePreviewCard({
     super.key,
@@ -54,27 +26,34 @@ class HomePreviewCard extends StatelessWidget {
     required this.isDark,
     required this.fontFamily,
     required this.headerImagePath,
-    required this.themeName,
   });
 
+  /// Realistic student-diary sample content, in place of the previous
+  /// lorem-ipsum placeholder text — two consecutive days (Nov 10 and
+  /// 11) so the month/day pairing in [_PreviewDiaryRow] is internally
+  /// consistent.
   static const List<_PreviewEntry> _sampleEntries = [
     _PreviewEntry(
-      day: '07',
-      weekday: 'Tue',
+      month: 'NOV',
+      day: '11',
       mood: '😄',
       moodLabel: 'HAPPY',
-      title: 'test',
+      isFavorite: true,
+      title: 'Finished my chemistry assignment early',
       preview:
-          'Lorem Ipsum is simply dummy text of the printing and typesetting industry.',
+          'Got through the whole titration lab write-up before dinner for '
+          'once. Ms. Rivera said our group\'s data was the cleanest in class.',
     ),
     _PreviewEntry(
-      day: '05',
-      weekday: 'Sun',
-      mood: null,
-      moodLabel: null,
-      title: 'new',
+      month: 'NOV',
+      day: '10',
+      mood: '😴',
+      moodLabel: 'TIRED',
+      isFavorite: false,
+      title: 'Late night studying for the history quiz',
       preview:
-          'Lorem Ipsum is simply dummy text of the printing and typesetting industry.',
+          'Stayed up way too late going over the timeline for tomorrow\'s '
+          'quiz. Hoping all those flashcards actually stick this time.',
     ),
   ];
 
@@ -82,7 +61,6 @@ class HomePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = backgroundColor.toColor();
     final primary = primaryColor.toColor();
-    final secondary = secondaryColor.toColor();
     final surface = surfaceColor.toColor();
     final onSurface = textColor.toColor();
     final onSurfaceMuted = onSurface.withValues(alpha: 0.6);
@@ -115,10 +93,10 @@ class HomePreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Center(
-                  child: _PreviewSegmentedControl(
+                  child: _PreviewFavoritesFilterToggle(
                     primaryColor: primary,
-                    onSurface: onSurface,
-                    textTheme: textTheme,
+                    surfaceColor: surface,
+                    onSurfaceVariant: onSurfaceMuted,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -131,7 +109,7 @@ class HomePreviewCard extends StatelessWidget {
                         _PreviewDiaryRow(
                           entry: entry,
                           surfaceColor: surface,
-                          secondaryColor: secondary,
+                          primaryColor: primary,
                           onSurface: onSurface,
                           onSurfaceMuted: onSurfaceMuted,
                           textTheme: textTheme,
@@ -176,18 +154,20 @@ class HomePreviewCard extends StatelessWidget {
 }
 
 class _PreviewEntry {
+  final String month;
   final String day;
-  final String weekday;
   final String? mood;
   final String? moodLabel;
+  final bool isFavorite;
   final String title;
   final String preview;
 
   const _PreviewEntry({
+    required this.month,
     required this.day,
-    required this.weekday,
     required this.mood,
     required this.moodLabel,
+    required this.isFavorite,
     required this.title,
     required this.preview,
   });
@@ -250,57 +230,114 @@ class _PreviewHeader extends StatelessWidget {
   }
 }
 
-/// Rounded-pill All/Favorites control, mirroring the real
-/// `SegmentedButton` look: filled+checked "All" segment in a soft tint
-/// of the primary color, outlined "Favorites" segment beside it.
-class _PreviewSegmentedControl extends StatelessWidget {
+/// Field-for-field mirror of the real `_FavoritesFilterToggle`: same
+/// fixed 108px segment width, same sliding-capsule highlight (a
+/// `Positioned` capsule in `surfaceColor` with a soft shadow, snapped
+/// to whichever segment is active — static here at "All" selected,
+/// since the live preview has no real filter state to reflect), same
+/// track background (`surfaceContainerHighest`-equivalent — this
+/// preview passes [surfaceColor] at 50% alpha, since `theme_mapper.dart`
+/// maps `AppThemeData.surfaceColor` directly onto
+/// `ColorScheme.surfaceContainerHighest`, the exact source the real
+/// widget reads from), same `favorite_rounded` icon shown only on the
+/// Favorites segment, and the same `primary`/`onSurfaceVariant` text
+/// coloring for selected/unselected.
+///
+/// Takes colors as explicit params rather than reading
+/// `Theme.of(context).colorScheme` like the real widget does, since
+/// this preview deliberately never builds a real themed `Theme` (see
+/// [HomePreviewCard]'s doc comment) — the values passed in are exactly
+/// what the real widget would read from the eventual `ColorScheme` once
+/// this custom theme is applied.
+class _PreviewFavoritesFilterToggle extends StatelessWidget {
   final Color primaryColor;
-  final Color onSurface;
-  final TextTheme textTheme;
+  final Color surfaceColor;
+  final Color onSurfaceVariant;
 
-  const _PreviewSegmentedControl({
+  const _PreviewFavoritesFilterToggle({
     required this.primaryColor,
-    required this.onSurface,
-    required this.textTheme,
+    required this.surfaceColor,
+    required this.onSurfaceVariant,
   });
+
+  static const _height = 40.0;
+  static const _trackPadding = 4.0;
+  static const _segmentWidth = 108.0;
+  static const _radius = Radius.circular(_height / 2);
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = textTheme.labelMedium?.copyWith(
-      color: onSurface,
-      fontWeight: FontWeight.w600,
-    );
+    const trackWidth = _segmentWidth * 2 + _trackPadding * 2;
 
     return Container(
+      height: _height,
+      width: trackWidth,
+      padding: const EdgeInsets.all(_trackPadding),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: onSurface.withValues(alpha: 0.25)),
+        color: surfaceColor.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.all(_radius),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: primaryColor.withValues(alpha: 0.35),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check, size: 14, color: onSurface),
-                const SizedBox(width: 4),
-                Text('All', style: labelStyle),
-              ],
+          // "All" is always the active segment in this static preview
+          // — left: 0 — since there's no real filter state to reflect.
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            width: _segmentWidth,
+            child: Container(
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: BorderRadius.all(_radius),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.favorite, size: 14, color: onSurface),
-                const SizedBox(width: 4),
-                Text('Favorites', style: labelStyle),
-              ],
+          Row(
+            children: [
+              _buildOption(label: 'All', icon: null, isSelected: true),
+              _buildOption(
+                label: 'Favorites',
+                icon: Icons.favorite_rounded,
+                isSelected: false,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOption({
+    required String label,
+    required IconData? icon,
+    required bool isSelected,
+  }) {
+    final foreground = isSelected ? primaryColor : onSurfaceVariant;
+
+    return SizedBox(
+      width: _segmentWidth,
+      height: double.infinity,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: foreground),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              fontSize: 13,
             ),
           ),
         ],
@@ -309,14 +346,18 @@ class _PreviewSegmentedControl extends StatelessWidget {
   }
 }
 
-/// A single diary row: bold date number + weekday on the left, a
-/// rounded surface-tinted card on the right (with a secondary-color
-/// accent bar) showing an optional mood row, a title, and a 2-line
-/// preview — matching [DiaryListItem]'s layout.
+/// A single diary row: date column mirroring the real `DateTile` (month
+/// abbreviation on top, big bold day number in `colorScheme.primary`
+/// below, left-aligned) on the left, and a card on the right mirroring
+/// `DiaryListItem` exactly — same padding (14), same corner radius
+/// (18), NO accent border, showing an optional mood-emoji-and-label row
+/// (with a favorite heart icon on the same line via a trailing
+/// `Spacer()`, matching the real widget), then the title
+/// (`titleSmall`), then a 2-line preview (`bodyMedium`, muted).
 class _PreviewDiaryRow extends StatelessWidget {
   final _PreviewEntry entry;
   final Color surfaceColor;
-  final Color secondaryColor;
+  final Color primaryColor;
   final Color onSurface;
   final Color onSurfaceMuted;
   final TextTheme textTheme;
@@ -324,7 +365,7 @@ class _PreviewDiaryRow extends StatelessWidget {
   const _PreviewDiaryRow({
     required this.entry,
     required this.surfaceColor,
-    required this.secondaryColor,
+    required this.primaryColor,
     required this.onSurface,
     required this.onSurfaceMuted,
     required this.textTheme,
@@ -332,78 +373,86 @@ class _PreviewDiaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Matches DiaryListItem's card exactly: 14 padding, 18 radius, no
+    // left accent border.
+    final card = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (entry.mood != null) ...[
+                Text(entry.mood!, style: const TextStyle(fontSize: 14)),
+                const SizedBox(width: 4),
+                Text(
+                  entry.moodLabel ?? '',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (entry.isFavorite)
+                Icon(Icons.favorite, size: 14, color: primaryColor),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            entry.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.titleSmall?.copyWith(color: onSurface),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            entry.preview,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.bodyMedium?.copyWith(color: onSurfaceMuted),
+          ),
+        ],
+      ),
+    );
+
+    // Matches the real DateTile exactly (the variant Home's day-grouped
+    // list actually uses, not DiaryListItem's own day-first/weekday-
+    // below column): 56-wide, left-aligned, labelSmall muted month
+    // abbreviation on top, headlineMedium bold day number in
+    // primaryColor below.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 32,
+          width: 56,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                entry.day,
-                style: textTheme.titleSmall?.copyWith(
-                  color: onSurface,
-                  fontWeight: FontWeight.bold,
+                entry.month,
+                style: textTheme.labelSmall?.copyWith(
+                  color: onSurfaceMuted,
+                  letterSpacing: 0.5,
                 ),
               ),
               Text(
-                entry.weekday,
-                style: textTheme.labelSmall?.copyWith(color: onSurfaceMuted),
+                entry.day,
+                style: textTheme.headlineMedium?.copyWith(
+                  color: primaryColor,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              borderRadius: BorderRadius.circular(14),
-              border: Border(
-                left: BorderSide(color: secondaryColor, width: 3),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (entry.mood != null) ...[
-                  Row(
-                    children: [
-                      Text(entry.mood!, style: const TextStyle(fontSize: 12)),
-                      const SizedBox(width: 4),
-                      Text(
-                        entry.moodLabel ?? '',
-                        style: textTheme.labelSmall?.copyWith(
-                          color: onSurface,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                Text(
-                  entry.title,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  entry.preview,
-                  style: textTheme.bodySmall?.copyWith(color: onSurfaceMuted),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
+        const SizedBox(width: 12),
+        Expanded(child: card),
       ],
     );
   }

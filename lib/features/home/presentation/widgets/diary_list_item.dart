@@ -66,7 +66,7 @@ class DiaryListItem extends StatelessWidget {
     // picked in the Colors > Surface field and sees in the live
     // preview. No alpha dilution: the preview shows this color at
     // full strength, so the real tile should match exactly.
-    final cardColor = colorScheme.surfaceContainerHighest;
+    final cardColor = colorScheme.surface;
     final onCardColor = colorScheme.onSurfaceVariant;
 
     final card = Container(

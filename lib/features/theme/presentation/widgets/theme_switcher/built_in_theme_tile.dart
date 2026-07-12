@@ -51,7 +51,7 @@ class BuiltInThemeTile extends StatelessWidget {
                 child: ThemeHeaderImage.fromTheme(
                   theme,
                   errorBuilder: (_) => Container(
-                    color: colorScheme.surfaceContainerHighest,
+                    color: colorScheme.surface,
                     child: Icon(Icons.image_outlined, color: colorScheme.outline),
                   ),
                 ),
