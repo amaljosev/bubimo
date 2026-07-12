@@ -1,8 +1,8 @@
-// lib/features/analytics/presentation/widgets/stats_summary_card.dart
+// lib/features/profile/presentation/widgets/analytics_widgets/stats_summary_card.dart
 
 import 'package:flutter/material.dart';
 
-import '../../domain/usecases/get_entry_stats.dart';
+import '../../../domain/usecases/analytics_usecases/get_entry_stats.dart';
 
 /// Shows total entries and total words written.
 class StatsSummaryCard extends StatelessWidget {

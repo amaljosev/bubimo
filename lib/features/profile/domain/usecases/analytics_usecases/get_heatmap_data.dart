@@ -1,12 +1,12 @@
-// lib/features/analytics/domain/usecases/get_heatmap_data.dart
+// lib/features/profile/domain/usecases/analytics_usecases/get_heatmap_data.dart
 
 import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/error/failures.dart';
-import '../../../../core/utils/date_utils.dart';
-import '../../../diary_entry/domain/entities/diary_entry.dart';
-import '../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
+import '../../../../../core/error/failures.dart';
+import '../../../../../core/utils/date_utils.dart';
+import '../../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// A single cell in the GitHub-style heatmap grid.
 class HeatmapDay extends Equatable {

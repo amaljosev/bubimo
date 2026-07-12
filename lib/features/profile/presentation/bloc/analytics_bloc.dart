@@ -1,13 +1,13 @@
-// lib/features/analytics/presentation/bloc/analytics/analytics_bloc.dart
+// lib/features/profile/presentation/bloc/analytics_bloc.dart
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../../core/error/failures.dart';
-import '../../../domain/usecases/get_current_streak.dart';
-import '../../../domain/usecases/get_entry_stats.dart';
-import '../../../domain/usecases/get_heatmap_data.dart';
-import '../../../domain/usecases/get_longest_streak.dart';
-import '../../../domain/usecases/get_mood_counts.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/usecases/analytics_usecases/get_current_streak.dart';
+import '../../domain/usecases/analytics_usecases/get_entry_stats.dart';
+import '../../domain/usecases/analytics_usecases/get_heatmap_data.dart';
+import '../../domain/usecases/analytics_usecases/get_longest_streak.dart';
+import '../../domain/usecases/analytics_usecases/get_mood_counts.dart';
 import 'analytics_event.dart';
 import 'analytics_state.dart';
 

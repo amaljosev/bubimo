@@ -1,9 +1,9 @@
-// lib/features/analytics/presentation/widgets/heatmap_widget.dart
+// lib/features/profile/presentation/widgets/analytics_widgets/heatmap_widget.dart
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/utils/date_utils.dart';
-import '../../domain/usecases/get_heatmap_data.dart';
+import '../../../../../core/utils/date_utils.dart';
+import '../../../domain/usecases/analytics_usecases/get_heatmap_data.dart';
 
 /// GitHub-style 365-day activity heatmap: one column per week, one row
 /// per weekday (Sun top, Sat bottom), each cell a filled/unfilled

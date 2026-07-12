@@ -1,11 +1,11 @@
-// lib/features/analytics/domain/usecases/get_current_streak.dart
+// lib/features/profile/domain/usecases/analytics_usecases/get_current_streak.dart
 
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/error/failures.dart';
-import '../../../../core/utils/date_utils.dart';
-import '../../../diary_entry/domain/entities/diary_entry.dart';
-import '../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
+import '../../../../../core/error/failures.dart';
+import '../../../../../core/utils/date_utils.dart';
+import '../../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// Computes the current streak: the number of consecutive calendar days
 /// (ending today) with at least one entry created OR updated.

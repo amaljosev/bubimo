@@ -1,9 +1,9 @@
-// lib/features/analytics/presentation/widgets/mood_count_chart.dart
+// lib/features/profile/presentation/widgets/analytics_widgets/mood_count_chart.dart
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../../../diary_entry/domain/entities/mood.dart';
+import '../../../../diary_entry/domain/entities/mood.dart';
 
 /// Shows how many entries have each mood as a rounded-bar chart, built
 /// with fl_chart. Bars are colored by a themed gradient from

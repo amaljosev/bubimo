@@ -1,11 +1,11 @@
-// lib/features/analytics/domain/usecases/get_longest_streak.dart
+// lib/features/profile/domain/usecases/analytics_usecases/get_longest_streak.dart
 
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/error/failures.dart';
-import '../../../../core/utils/date_utils.dart';
-import '../../../diary_entry/domain/entities/diary_entry.dart';
-import '../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
+import '../../../../../core/error/failures.dart';
+import '../../../../../core/utils/date_utils.dart';
+import '../../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// Computes the longest streak ever achieved: the longest run of
 /// consecutive calendar days with at least one entry created OR

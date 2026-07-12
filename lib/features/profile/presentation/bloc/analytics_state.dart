@@ -1,10 +1,10 @@
-// lib/features/analytics/presentation/bloc/analytics/analytics_state.dart
+// lib/features/profile/presentation/bloc/analytics_state.dart
 
 import 'package:equatable/equatable.dart';
 
-import '../../../../diary_entry/domain/entities/mood.dart';
-import '../../../domain/usecases/get_entry_stats.dart';
-import '../../../domain/usecases/get_heatmap_data.dart';
+import '../../../diary_entry/domain/entities/mood.dart';
+import '../../domain/usecases/analytics_usecases/get_entry_stats.dart';
+import '../../domain/usecases/analytics_usecases/get_heatmap_data.dart';
 
 enum AnalyticsStatus { initial, loading, loaded, failure }
 

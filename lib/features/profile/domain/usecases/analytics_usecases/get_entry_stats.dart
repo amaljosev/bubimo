@@ -1,10 +1,10 @@
-// lib/features/analytics/domain/usecases/get_entry_stats.dart
+// lib/features/profile/domain/usecases/analytics_usecases/get_entry_stats.dart
 
 import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/error/failures.dart';
-import '../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
+import '../../../../../core/error/failures.dart';
+import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// Simple aggregate stats derived from all diary entries.
 class EntryStats extends Equatable {

@@ -1,4 +1,4 @@
-// lib/features/analytics/presentation/widgets/streak_display.dart
+// lib/features/profile/presentation/widgets/analytics_widgets/streak_display.dart
 
 import 'package:flutter/material.dart';
 

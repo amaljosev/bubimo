@@ -1,10 +1,10 @@
-// lib/features/analytics/domain/usecases/get_mood_counts.dart
+// lib/features/profile/domain/usecases/analytics_usecases/get_mood_counts.dart
 
 import 'package:fpdart/fpdart.dart';
 
-import '../../../../core/error/failures.dart';
-import '../../../diary_entry/domain/entities/mood.dart';
-import '../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
+import '../../../../../core/error/failures.dart';
+import '../../../../diary_entry/domain/entities/mood.dart';
+import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// Computes how many entries have each [Mood], derived live from all
 /// diary entries — nothing is stored separately. Entries with no mood

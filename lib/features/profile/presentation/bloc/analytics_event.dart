@@ -1,4 +1,4 @@
-// lib/features/analytics/presentation/bloc/analytics/analytics_event.dart
+// lib/features/profile/presentation/bloc/analytics_event.dart
 
 import 'package:equatable/equatable.dart';
 

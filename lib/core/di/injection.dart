@@ -38,12 +38,12 @@ import '../../features/theme/presentation/bloc/theme_list/theme_list_bloc.dart';
 import '../../features/theme/presentation/cubit/app_theme_cubit.dart';
 
 // analytics
-import '../../features/analytics/domain/usecases/get_current_streak.dart';
-import '../../features/analytics/domain/usecases/get_entry_stats.dart';
-import '../../features/analytics/domain/usecases/get_heatmap_data.dart';
-import '../../features/analytics/domain/usecases/get_longest_streak.dart';
-import '../../features/analytics/domain/usecases/get_mood_counts.dart';
-import '../../features/analytics/presentation/bloc/analytics/analytics_bloc.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_current_streak.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_entry_stats.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_heatmap_data.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_longest_streak.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_mood_counts.dart';
+import '../../features/profile/presentation/bloc/analytics_bloc.dart';
 
 // profile
 import '../../features/profile/data/datasources/profile_local_data_source.dart';
