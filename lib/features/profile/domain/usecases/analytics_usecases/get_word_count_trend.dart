@@ -24,30 +24,39 @@ class WordCountDay extends Equatable {
 /// deliberately shorter window than the 365-day heatmap: this chart is
 /// about recent effort/momentum ("am I writing more or less lately"),
 /// not long-term presence, so a month keeps it readable as a line chart
-/// instead of an unreadably dense 365-point series.
+/// instead of an unreadable dense 365-point series.
 const int kWordCountTrendDays = 30;
 
 /// Pure calculation, split out so [GetAnalyticsSnapshot] can reuse it
 /// against entries it already fetched, without forcing a second
 /// `getAllDiaryEntries()` call.
 ///
-/// Buckets [entries] by calendar day (attributed to `updatedAt`, so
-/// editing an old entry today adds today's edited word count to
-/// today's bar — consistent with the same "activity is measured by
-/// createdAt/updatedAt" rule the heatmap and streaks use) and sums
-/// `wordCount` per day for the last [kWordCountTrendDays] days.
+/// Buckets [entries] by [DiaryEntry.date] (the diary date the user
+/// picked/backdated to) — the same source of truth as the heatmap and
+/// Timeline — and sums `wordCount` per day for the last
+/// [kWordCountTrendDays] days.
 ///
-/// Deliberately attributes the entry's FULL current `wordCount` to the
-/// day it was last touched, not just the words added in that edit
-/// (this app doesn't store word-count deltas per edit) — so this chart
-/// reads as "how much total writing was active on this day," not
-/// "how many new words were typed this day." That's a reasonable and
-/// clearly-scoped proxy for writing consistency without needing new
+/// Previously this bucketed by `updatedAt`, which meant editing a
+/// backdated entry today moved its entire word count onto TODAY's bar
+/// instead of the day the entry is actually for. Switched to `date` for
+/// the same reason the heatmap was: a word count is a property of the
+/// entry, and the entry belongs to the day it's dated for, not the day
+/// someone happened to last touch it. Streaks are the one metric that
+/// intentionally keeps `createdAt`/`updatedAt` ("did you show up
+/// today") — this chart is about volume, like the heatmap is about
+/// presence, so it follows the heatmap's rule instead.
+///
+/// Deliberately attributes the entry's FULL current `wordCount` to its
+/// dated day, not just words added in a particular edit (this app
+/// doesn't store word-count deltas per edit) — so this chart reads as
+/// "how much total writing exists for this day," not "how many new
+/// words were typed on this real-world day." That's a reasonable,
+/// clearly-scoped proxy for writing consistency without new
 /// schema/tracking.
 List<WordCountDay> calculateWordCountTrend(List<DiaryEntry> entries) {
   final wordsByDay = <DateTime, int>{};
   for (final entry in entries) {
-    final day = AppDateUtils.dateOnly(entry.updatedAt);
+    final day = AppDateUtils.dateOnly(entry.date);
     wordsByDay[day] = (wordsByDay[day] ?? 0) + entry.wordCount;
   }
 

@@ -46,7 +46,7 @@ class WritingConsistencyChart extends StatelessWidget {
     final chartMaxY = maxWords == 0 ? 10.0 : maxWords * 1.2;
 
     // Label only a handful of days along the x-axis (not all 30) to
-    // avoid an unreadably cramped axis.
+    // avoid an unreadable cramped axis.
     final labelEvery = (wordCountTrend.length / 5).ceil().clamp(1, 30);
 
     return Card(

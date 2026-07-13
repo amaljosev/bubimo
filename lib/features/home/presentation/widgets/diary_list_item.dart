@@ -1,5 +1,6 @@
 // lib/features/diary_entry/presentation/widgets/diary_list_item.dart
 
+import 'package:bubimo/core/navigation/debounced_tap.dart';
 import 'package:bubimo/core/utils/date_utils.dart';
 import 'package:bubimo/features/diary_entry/domain/entities/diary_entry.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +35,11 @@ import 'package:flutter/material.dart';
 /// primaryContainer is never set there). Do not revert to
 /// primaryContainer without also explicitly setting it in
 /// theme_mapper.dart.
+///
+/// Tap handling uses [DebouncedTap] (not a plain `InkWell`) so a fast
+/// double-tap on the same tile can't push [onTap]'s destination route
+/// twice — see [DebouncedTap]'s doc comment for why this was needed
+/// app-wide, not just here.
 class DiaryListItem extends StatelessWidget {
   final DiaryEntry entry;
   final VoidCallback onTap;
@@ -124,7 +130,7 @@ class DiaryListItem extends StatelessWidget {
       ),
     );
 
-    return InkWell(
+    return DebouncedTap(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
