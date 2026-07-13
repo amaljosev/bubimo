@@ -8,6 +8,10 @@ import '../../../domain/usecases/analytics_usecases/get_heatmap_data.dart';
 /// GitHub-style 365-day activity heatmap: one column per week, one row
 /// per weekday (Sun top, Sat bottom), each cell a filled/unfilled
 /// square depending on [HeatmapDay.hasEntry].
+///
+/// Cell data is keyed by [DiaryEntry.date] (the diary date, matching
+/// Timeline) — see [calculateHeatmapData]'s doc comment. Long-pressing
+/// a cell shows a [Tooltip] with the date and entry count for that day.
 class HeatmapWidget extends StatelessWidget {
   final List<HeatmapDay> heatmapData;
 
@@ -131,27 +135,88 @@ class _WeekColumn extends StatelessWidget {
               ? Colors.transparent
               : (day.hasEntry ? filledColor : emptyColor);
 
+          final cell = Container(
+            width: HeatmapWidget._cellSize,
+            height: HeatmapWidget._cellSize,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(3.5),
+            ),
+          );
+
           return Padding(
             padding: const EdgeInsets.symmetric(
               vertical: HeatmapWidget._cellSpacing / 2,
             ),
-            child: Tooltip(
-              message: day == null
-                  ? ''
-                  : '${AppDateUtils.toDisplayString(day.date)}'
-                      '${day.hasEntry ? ' — wrote' : ''}',
-              child: Container(
-                width: HeatmapWidget._cellSize,
-                height: HeatmapWidget._cellSize,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(3.5),
-                ),
-              ),
-            ),
+            child: day == null
+                ? cell
+                : _DayTooltip(day: day, child: cell),
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+/// Theme-aware [Tooltip] wrapper for a single heatmap cell: shown on
+/// long-press (press-and-hold, not the default tap/hover), styled as a
+/// small themed card — [ColorScheme.inverseSurface] background (the
+/// same role `MoodCountChart`'s bar-touch tooltip uses, so both charts'
+/// tooltips look consistent with each other) with a bold date line and
+/// a lighter entry-count line, rather than Tooltip's plain default
+/// dark bubble.
+class _DayTooltip extends StatelessWidget {
+  final HeatmapDay day;
+  final Widget child;
+
+  const _DayTooltip({required this.day, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final entryLabel = day.entryCount == 1 ? 'entry' : 'entries';
+
+    return Tooltip(
+      // longPress makes this a press-and-hold interaction on touch
+      // devices, rather than the default long-press-then-release
+      // "show on tap" behavior Tooltip normally has.
+      triggerMode: TooltipTriggerMode.longPress,
+      preferBelow: false,
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      richMessage: TextSpan(
+        children: [
+          TextSpan(
+            text: AppDateUtils.toDisplayString(day.date),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+          TextSpan(
+            text: '\n${day.entryCount} $entryLabel',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.85),
+              fontWeight: FontWeight.w400,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }

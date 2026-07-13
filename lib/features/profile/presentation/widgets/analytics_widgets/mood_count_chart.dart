@@ -15,12 +15,13 @@ import '../../../../diary_entry/domain/entities/mood.dart';
 /// gradient (not `tertiary` — this app only ever collects 5 theme
 /// colors, and `theme_mapper.dart` maps `tertiary` to the same value as
 /// `secondary`, so reaching for `secondary` directly here is equivalent
-/// and clearer about intent). The touch tooltip uses
-/// [ColorScheme.inverseSurface]/[ColorScheme.onInverseSurface], which
-/// `theme_mapper.dart` now derives from the theme's own brightness
-/// rather than leaving unset (previously this silently fell back to an
-/// untamed Material default that could blend into the page
-/// background under some custom themes).
+/// and clearer about intent).
+///
+/// The touch tooltip uses the same themed-card design as
+/// [HeatmapWidget]'s day tooltip and [WritingConsistencyChart]'s point
+/// tooltip — [ColorScheme.surface] background, rounded corners, a soft
+/// shadow, and a bold label line over a lighter value line — so all
+/// three analytics tooltips look and feel identical.
 class MoodCountChart extends StatelessWidget {
   final Map<Mood, int> moodCounts;
 
@@ -67,22 +68,32 @@ class MoodCountChart extends StatelessWidget {
                   alignment: BarChartAlignment.spaceAround,
                   barTouchData: BarTouchData(
                     touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => colorScheme.inverseSurface,
+                      getTooltipColor: (_) => colorScheme.surfaceContainerHigh,
+                      tooltipBorderRadius: BorderRadius.circular(12),
+                      tooltipPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      tooltipMargin: 12,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final mood = Mood.values[group.x.toInt()];
+                        final entryLabel =
+                            rod.toY.round() == 1 ? 'entry' : 'entries';
                         return BarTooltipItem(
                           '${mood.label}\n',
                           TextStyle(
-                            color: colorScheme.onInverseSurface,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                           children: [
                             TextSpan(
-                              text: rod.toY.round().toString(),
+                              text: '${rod.toY.round()} $entryLabel',
                               style: TextStyle(
-                                color: colorScheme.onInverseSurface,
+                                color:
+                                    colorScheme.onSurface.withValues(alpha: 0.85),
                                 fontWeight: FontWeight.w400,
+                                fontSize: 12,
                               ),
                             ),
                           ],

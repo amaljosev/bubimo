@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../../core/error/failures.dart';
+import '../../../../diary_entry/domain/entities/diary_entry.dart';
 import '../../../../diary_entry/domain/usecases/get_all_diary_entries.dart';
 
 /// Simple aggregate stats derived from all diary entries.
@@ -17,12 +18,26 @@ class EntryStats extends Equatable {
   List<Object?> get props => [totalEntries, totalWords];
 }
 
-/// Computes total entry count and total word count across every diary
-/// entry. `wordCount` is precomputed and stored per-entry on save (see
+/// Pure calculation, split out so [GetAnalyticsSnapshot] can reuse it
+/// against entries it already fetched, without forcing a second
+/// `getAllDiaryEntries()` call.
+///
+/// `wordCount` is precomputed and stored per-entry on save (see
 /// diary_entry's rich editor milestone), so this is just a fast
 /// summation — no re-parsing of content.
-///
+EntryStats calculateEntryStats(List<DiaryEntry> entries) {
+  final totalWords = entries.fold<int>(
+    0,
+    (sum, entry) => sum + entry.wordCount,
+  );
+  return EntryStats(totalEntries: entries.length, totalWords: totalWords);
+}
+
 /// Usage: `await getEntryStats()`.
+///
+/// Kept as a standalone use case (in addition to
+/// [GetAnalyticsSnapshot]) for call sites or tests that want just this
+/// one metric without depending on the combined snapshot.
 class GetEntryStats {
   final GetAllDiaryEntries getAllDiaryEntries;
 
@@ -30,13 +45,6 @@ class GetEntryStats {
 
   Future<Either<Failure, EntryStats>> call() async {
     final result = await getAllDiaryEntries();
-
-    return result.map((entries) {
-      final totalWords = entries.fold<int>(
-        0,
-        (sum, entry) => sum + entry.wordCount,
-      );
-      return EntryStats(totalEntries: entries.length, totalWords: totalWords);
-    });
+    return result.map(calculateEntryStats);
   }
 }

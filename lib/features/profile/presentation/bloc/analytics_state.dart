@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../../diary_entry/domain/entities/mood.dart';
 import '../../domain/usecases/analytics_usecases/get_entry_stats.dart';
 import '../../domain/usecases/analytics_usecases/get_heatmap_data.dart';
+import '../../domain/usecases/analytics_usecases/get_word_count_trend.dart';
 
 enum AnalyticsStatus { initial, loading, loaded, failure }
 
@@ -15,6 +16,7 @@ class AnalyticsState extends Equatable {
   final int longestStreak;
   final List<HeatmapDay> heatmapData;
   final EntryStats entryStats;
+  final List<WordCountDay> wordCountTrend;
   final String? errorMessage;
 
   const AnalyticsState({
@@ -24,6 +26,7 @@ class AnalyticsState extends Equatable {
     this.longestStreak = 0,
     this.heatmapData = const [],
     this.entryStats = const EntryStats(totalEntries: 0, totalWords: 0),
+    this.wordCountTrend = const [],
     this.errorMessage,
   });
 
@@ -34,6 +37,7 @@ class AnalyticsState extends Equatable {
     int? longestStreak,
     List<HeatmapDay>? heatmapData,
     EntryStats? entryStats,
+    List<WordCountDay>? wordCountTrend,
     String? errorMessage,
   }) {
     return AnalyticsState(
@@ -43,6 +47,7 @@ class AnalyticsState extends Equatable {
       longestStreak: longestStreak ?? this.longestStreak,
       heatmapData: heatmapData ?? this.heatmapData,
       entryStats: entryStats ?? this.entryStats,
+      wordCountTrend: wordCountTrend ?? this.wordCountTrend,
       errorMessage: errorMessage,
     );
   }
@@ -55,6 +60,7 @@ class AnalyticsState extends Equatable {
         longestStreak,
         heatmapData,
         entryStats,
+        wordCountTrend,
         errorMessage,
       ];
 }

@@ -38,11 +38,13 @@ import '../../features/theme/presentation/bloc/theme_list/theme_list_bloc.dart';
 import '../../features/theme/presentation/cubit/app_theme_cubit.dart';
 
 // analytics
+import '../../features/profile/domain/usecases/analytics_usecases/get_analytics_snapshot.dart';
 import '../../features/profile/domain/usecases/analytics_usecases/get_current_streak.dart';
 import '../../features/profile/domain/usecases/analytics_usecases/get_entry_stats.dart';
 import '../../features/profile/domain/usecases/analytics_usecases/get_heatmap_data.dart';
 import '../../features/profile/domain/usecases/analytics_usecases/get_longest_streak.dart';
 import '../../features/profile/domain/usecases/analytics_usecases/get_mood_counts.dart';
+import '../../features/profile/domain/usecases/analytics_usecases/get_word_count_trend.dart';
 import '../../features/profile/presentation/bloc/analytics_bloc.dart';
 
 // profile
@@ -184,6 +186,13 @@ Future<void> configureDependencies() async {
   );
 
   // --- analytics ---
+  // Individual per-metric use cases are still registered (kept as thin
+  // wrappers around shared pure calculation functions — see each
+  // Get*'s doc comment) for any call site or test that wants just one
+  // metric. AnalyticsBloc itself depends only on GetAnalyticsSnapshot,
+  // which does a SINGLE getAllDiaryEntries() fetch and derives every
+  // metric from that one result, instead of the previous pattern of 5
+  // independent use cases each re-fetching every entry from scratch.
   getIt.registerLazySingleton(
     () => GetMoodCounts(getIt<GetAllDiaryEntries>()),
   );
@@ -199,14 +208,16 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(
     () => GetEntryStats(getIt<GetAllDiaryEntries>()),
   );
+  getIt.registerLazySingleton(
+    () => GetWordCountTrend(getIt<GetAllDiaryEntries>()),
+  );
+  getIt.registerLazySingleton(
+    () => GetAnalyticsSnapshot(getIt<GetAllDiaryEntries>()),
+  );
 
   getIt.registerFactory(
     () => AnalyticsBloc(
-      getMoodCounts: getIt<GetMoodCounts>(),
-      getCurrentStreak: getIt<GetCurrentStreak>(),
-      getLongestStreak: getIt<GetLongestStreak>(),
-      getHeatmapData: getIt<GetHeatmapData>(),
-      getEntryStats: getIt<GetEntryStats>(),
+      getAnalyticsSnapshot: getIt<GetAnalyticsSnapshot>(),
     ),
   );
 

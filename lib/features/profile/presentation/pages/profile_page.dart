@@ -13,6 +13,7 @@ import '../widgets/analytics_widgets/heatmap_widget.dart';
 import '../widgets/analytics_widgets/mood_count_chart.dart';
 import '../widgets/analytics_widgets/stats_summary_card.dart';
 import '../widgets/analytics_widgets/streak_display.dart';
+import '../widgets/analytics_widgets/writing_consistency_chart.dart';
 import '../cubit/profile_cubit.dart';
 import '../cubit/profile_state.dart';
 import '../widgets/edit_profile_sheet.dart';
@@ -139,8 +140,13 @@ class ProfileAnalyticsScreen extends StatelessWidget {
             StatsSummaryCard(stats: analyticsState.entryStats),
             const SizedBox(height: 12),
             HeatmapWidget(heatmapData: analyticsState.heatmapData),
+            
             const SizedBox(height: 12),
             MoodCountChart(moodCounts: analyticsState.moodCounts),
+            const SizedBox(height: 12),
+            WritingConsistencyChart(
+              wordCountTrend: analyticsState.wordCountTrend,
+            ),
           ],
         ],
       ),
