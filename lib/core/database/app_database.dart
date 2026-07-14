@@ -18,15 +18,26 @@ import 'tables/user_profile_table.dart';
 /// to import directly, but add it explicitly to pubspec.yaml if you want to
 /// pin its version.
 class AppDatabase {
-  // Bumped 8 -> 9: `custom_themes` gains a second, independent set of
-  // 5 color columns (`*_dark` suffix — primary_color_dark etc.) so a
-  // single custom theme can store its own Light Mode palette AND its
-  // own Dark Mode palette at once, instead of one flat set of colors
-  // that gets overwritten every time the Dark Mode toggle is flipped
-  // on the Create/Edit Custom Theme screen — see CustomThemesTable's
-  // doc comment. Follows the same drop+recreate precedent as the
-  // v2->v3, v5->v6, and v7->v8 migrations on this table.
-  static const int _databaseVersion = 9;
+  // RESET TO 1 — pre-launch schema collapse.
+  //
+  // Versions 2 through 9 existed only during development (emulator
+  // testing, no real installs to preserve), each incrementally patching
+  // the schema as features were built — extra overlay columns, 3
+  // separate `custom_themes` rebuilds, profile personalization columns,
+  // a nullable-column fix-up, etc. None of that migration history has
+  // any install to apply to, so it's collapsed here: [_onCreate] now
+  // builds the FINAL schema directly (already reflected in each
+  // table's `createTableSql` — see DiaryEntriesTable,
+  // CustomThemesTable, UserProfileTable, AppSettingsTable), and this is
+  // version 1 again.
+  //
+  // From this point forward, version 1 is the real, shipped baseline.
+  // The NEXT schema change after publishing should bump this to 2 and
+  // add a real, deliberate migration step in [_onUpgrade] — do not
+  // repeat the drop+recreate pattern once real user data exists,
+  // since that discards diary entries/themes/profile data instead of
+  // preserving them.
+  static const int _databaseVersion = 1;
   static const String _databaseName = 'diary_app.db';
 
   Database? _database;
@@ -60,56 +71,11 @@ class AppDatabase {
     await db.execute(CustomThemesTable.createTableSql);
   }
 
-  /// Migration hook for future schema versions. Since the current schema
-  /// is designed to cover every planned field upfront (see project
-  /// blueprint), this should rarely need real migration logic — but the
-  /// hook is here so version bumps don't require restructuring later.
+  
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-  if (oldVersion < 2) {
-    for (final sql in DiaryEntriesTable.addOverlayOpacityColumnsSql) {
-      await db.execute(sql);
-    }
+    // No-op: version 1 is the current baseline, nothing precedes it.
   }
 
-  if (oldVersion < 3) {
-    await db.execute(CustomThemesTable.dropTableSql);
-    await db.execute(CustomThemesTable.createTableSql);
-  }
-
-  if (oldVersion < 4) {
-    for (final sql in UserProfileTable.addProfilePersonalizationColumnsSql) {
-      await db.execute(sql);
-    }
-  }
-
-  if (oldVersion < 5) {
-    await db.execute(AppSettingsTable.createTableSql);
-  }
-
-  if (oldVersion < 6) {
-    await db.execute(CustomThemesTable.dropTableSql);
-    await db.execute(CustomThemesTable.createTableSql);
-  }
-
-  if (oldVersion < 7) {
-    for (final sql in DiaryEntriesTable.migrateOverlayColorToNullableSql) {
-      await db.execute(sql);
-    }
-  }
-
-  if (oldVersion < 8) {
-    await db.execute(CustomThemesTable.dropTableSql);
-    await db.execute(CustomThemesTable.createTableSql);
-  }
-
-  if (oldVersion < 9) {
-    await db.execute(CustomThemesTable.dropTableSql);
-    await db.execute(CustomThemesTable.createTableSql);
-  }
-}
-
-  /// Closes the database. Rarely needed in app code (GetIt keeps this
-  /// alive for the app's lifetime), but useful for tests/debug tooling.
   Future<void> close() async {
     final db = _database;
     if (db != null) {

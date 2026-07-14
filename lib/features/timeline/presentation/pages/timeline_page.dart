@@ -89,11 +89,7 @@ class _TimelineViewState extends State<_TimelineView>
   // shared helpers to DiaryEntry-specific field access.
 
   static List<DiaryEntry> _entriesForDay(DateTime day, List<DiaryEntry> all) {
-    return EntryGroupingUtils.itemsForDay<DiaryEntry>(
-      day,
-      all,
-      (e) => e.date,
-    );
+    return EntryGroupingUtils.itemsForDay<DiaryEntry>(day, all, (e) => e.date);
   }
 
   static Set<DateTime> _markedDates(List<DiaryEntry> entries) {
@@ -220,10 +216,6 @@ class _TimelineViewState extends State<_TimelineView>
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // ── Hero SliverAppBar ──────────────────────────────────
-              // Only depends on `entries` (already scoped above) and
-              // `focusedDay` — isolated behind a BlocSelector so
-              // day-selection taps don't rebuild it.
               BlocSelector<TimelineCubit, TimelineState, DateTime>(
                 selector: (state) => state.focusedDay,
                 builder: (context, focusedDay) {
@@ -236,10 +228,6 @@ class _TimelineViewState extends State<_TimelineView>
                 },
               ),
 
-              // ── Calendar card ──────────────────────────────────────
-              // Depends on `entries` (scoped above) plus focused/selected
-              // day for highlighting — its own BlocBuilder so unrelated
-              // hero-only rebuilds don't re-run TableCalendar's layout.
               BlocBuilder<TimelineCubit, TimelineState>(
                 builder: (context, timelineState) {
                   final focusedDay = timelineState.focusedDay;
@@ -282,9 +270,7 @@ class _TimelineViewState extends State<_TimelineView>
                         ),
                       ),
                       if (dayEntries.isEmpty)
-                        const SliverToBoxAdapter(
-                          child: TimelineEmptyDayView(),
-                        )
+                        const SliverToBoxAdapter(child: TimelineEmptyDayView())
                       else
                         SliverPadding(
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -378,8 +364,10 @@ class _TimelineHeroAppBar extends StatelessWidget {
       automaticallyImplyLeading: false,
       flexibleSpace: LayoutBuilder(
         builder: (context, constraints) {
-          final expandRatio = ((constraints.maxHeight - 60) / (200 - 60))
-              .clamp(0.0, 1.0);
+          final expandRatio = ((constraints.maxHeight - 60) / (200 - 60)).clamp(
+            0.0,
+            1.0,
+          );
           final isCollapsed = expandRatio < 0.15;
 
           return Stack(
@@ -471,15 +459,14 @@ class _TimelineHeroAppBar extends StatelessWidget {
                               children: [
                                 Text(
                                   AppDateUtils.monthNameLong(focusedDay.month),
-                                  style: theme.textTheme.displaySmall
-                                      ?.copyWith(
-                                        color: bgImagePath != null
-                                            ? Colors.white
-                                            : theme.colorScheme.onSurface,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -1,
-                                        height: 1,
-                                      ),
+                                  style: theme.textTheme.displaySmall?.copyWith(
+                                    color: bgImagePath != null
+                                        ? Colors.white
+                                        : theme.colorScheme.onSurface,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -1,
+                                    height: 1,
+                                  ),
                                 ),
                                 Text(
                                   '${focusedDay.year}',
@@ -566,7 +553,7 @@ class _TimelineCalendarCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 16, 12, 0),
       decoration: BoxDecoration(
-        color: theme.cardColor,
+        color: theme.colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -817,7 +804,9 @@ class _SelectedDayHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  AppDateUtils.weekdayNameShort(selectedDay.weekday).toUpperCase(),
+                  AppDateUtils.weekdayNameShort(
+                    selectedDay.weekday,
+                  ).toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.38),
@@ -826,7 +815,9 @@ class _SelectedDayHeader extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  isToday ? 'Today' : AppDateUtils.monthNameLong(selectedDay.month),
+                  isToday
+                      ? 'Today'
+                      : AppDateUtils.monthNameLong(selectedDay.month),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -836,10 +827,7 @@ class _SelectedDayHeader extends StatelessWidget {
           ),
           if (dayEntryCount > 0)
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 5,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),

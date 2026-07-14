@@ -19,22 +19,7 @@ import '../cubit/profile_state.dart';
 import '../widgets/edit_profile_sheet.dart';
 import '../widgets/profile_header.dart';
 
-/// Combined Profile & Analytics screen.
-///
-/// Replaces the old standalone AnalyticsScreen and the old standalone
-/// ProfilePage — this is now the Profile tab's body, rendered inside
-/// MainShell's IndexedStack (kept alive across tab switches, same as
-/// every other tab).
-///
-/// Both [ProfileCubit] and [AnalyticsBloc] are provided by whoever
-/// mounts this screen (see MainShell, which creates both once in
-/// initState and keeps them alive for the shell's lifetime) — this
-/// widget only consumes them. It's a [StatelessWidget] rather than
-/// stateful specifically so it can't accidentally re-trigger a load of
-/// its own: the initial `loadProfile()` / `LoadAnalytics()` dispatch
-/// happens exactly once, where the blocs are CREATED, matching the
-/// pattern every other tab uses (LoadDiaryEntries/LoadThemes in
-/// MainShell.initState) rather than inside the tab's own widget.
+
 class ProfileAnalyticsScreen extends StatelessWidget {
   const ProfileAnalyticsScreen({super.key});
 

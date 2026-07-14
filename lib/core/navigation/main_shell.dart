@@ -98,6 +98,10 @@ class _MainShellState extends State<MainShell> {
 
   void _onTabTapped(int index) {
     if (index == _currentIndex) return;
+    
+    if (index == 3 && _currentIndex != 3) {
+     _analyticsBloc.add(LoadAnalytics());
+    }
     setState(() => _currentIndex = index);
   }
 
@@ -120,7 +124,10 @@ class _MainShellState extends State<MainShell> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          BlocProvider.value(value: _diaryListBloc, child: const TimelinePage()),
+          BlocProvider.value(
+            value: _diaryListBloc,
+            child: const TimelinePage(),
+          ),
           BlocProvider.value(value: _diaryListBloc, child: const HomePage()),
           BlocProvider.value(value: _themeListBloc, child: const ThemeScreen()),
           MultiBlocProvider(

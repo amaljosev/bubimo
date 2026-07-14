@@ -112,9 +112,9 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
     result.match(
       (failure) {
         setState(() => _isTogglingFavorite = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.message)));
       },
       (_) => setState(() {
         _entry = updated;
@@ -148,15 +148,12 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
 
     if (!mounted) return;
 
-    result.match(
-      (failure) {
-        setState(() => _isDeleting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
-      },
-      (_) => context.pop(true),
-    );
+    result.match((failure) {
+      setState(() => _isDeleting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(failure.message)));
+    }, (_) => context.pop(true));
   }
 
   @override
@@ -242,52 +239,79 @@ class _DiaryEntryViewPageState extends State<DiaryEntryViewPage> {
             )
           : null,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: .start,
           children: [
-            if (entry.mood != null)
-              Text(entry.mood!.emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 8),
-            Text(
-              entry.title?.isNotEmpty == true ? entry.title! : 'Untitled',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppDateUtils.toDisplayString(entry.date),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            if (_viewController != null)
-              // A plain Stack (not OverlayLayer) is enough here since
-              // view mode — overlay images and stickers just render at
-              // their saved position/scale/rotation, matching the
-              // editor's coordinate space exactly since both use the
-              // same data as the form page.
-              Stack(
-                clipBehavior: Clip.none,
+            // ── Fixed header: mood, title, date ──────────────────────
+            // Pulled out of the scroll region that holds the editor +
+            // sticker/overlay stack below, exactly like the form
+            // page's header/description split. Overlay item positions
+            // are stored relative to the editor's own bounds, not the
+            // page's — if this header shared a scroll view with the
+            // Stack (as it used to), the Stack's origin would sit
+            // however far down the header pushed it, offsetting every
+            // sticker/image from where it appears on the form page.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  quill.QuillEditor.basic(
-                    controller: _viewController!,
-                    config: quill.QuillEditorConfig(
-                      embedBuilders: [
-                        ResizableImageEmbedBuilder(),
-                        ...FlutterQuillEmbeds.editorBuilders(),
-                      ],
+                  if (entry.mood != null)
+                    Text(
+                      entry.mood!.emoji,
+                      style: const TextStyle(fontSize: 32),
                     ),
+                  const SizedBox(height: 8),
+                  Text(
+                    entry.title?.isNotEmpty == true ? entry.title! : 'Untitled',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  for (final image in entry.overlayImages)
-                    OverlayImageView(
-                      key: ValueKey('image_${image.id}'),
-                      image: image,
-                    ),
-                  for (final sticker in entry.stickers)
-                    StickerOverlayView(
-                      key: ValueKey('sticker_${sticker.id}'),
-                      sticker: sticker,
-                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppDateUtils.toDisplayString(entry.date),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
+            ),
+            // ── Description area: editor + sticker/overlay stack ────
+            // Padding here (20 horizontal, 12 top) intentionally
+            // matches the form page's `_editorBoundsKey` container
+            // exactly, since that box is the coordinate space overlay
+            // image/sticker positions are stored relative to. Matching
+            // it here means a sticker's saved (x, y) lands in the same
+            // spot on screen in both places.
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                child: _viewController == null
+                    ? const SizedBox.shrink()
+                    : Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          quill.QuillEditor.basic(
+                            controller: _viewController!,
+                            config: quill.QuillEditorConfig(
+                              embedBuilders: [
+                                ResizableImageEmbedBuilder(),
+                                ...FlutterQuillEmbeds.editorBuilders(),
+                              ],
+                            ),
+                          ),
+                          for (final image in entry.overlayImages)
+                            OverlayImageView(
+                              key: ValueKey('image_${image.id}'),
+                              image: image,
+                            ),
+                          for (final sticker in entry.stickers)
+                            StickerOverlayView(
+                              key: ValueKey('sticker_${sticker.id}'),
+                              sticker: sticker,
+                            ),
+                        ],
+                      ),
+              ),
+            ),
           ],
         ),
       ),

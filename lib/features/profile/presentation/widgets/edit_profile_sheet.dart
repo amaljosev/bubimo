@@ -3,10 +3,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../shared/presentation/widgets/cropping_image_picker_field.dart';
 import '../../domain/entities/user_profile.dart';
 
 /// Bottom sheet for editing the optional profile fields: avatar, header
@@ -43,8 +43,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   String? _avatarPath;
   String? _headerImagePath;
 
-  final _picker = ImagePicker();
-
   @override
   void initState() {
     super.initState();
@@ -62,35 +60,29 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     super.dispose();
   }
 
-  /// Picks an image and copies it into the app's documents directory so
-  /// it survives independently of wherever the OS picker sourced it
-  /// from — the same durable-local-path approach used for custom theme
-  /// header images.
-  Future<String?> _pickAndPersistImage() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
-    if (picked == null) return null;
-
+  /// Copies the cropper's output file into the app's documents directory
+  /// so it survives independently of the cropper's cache location — the
+  /// same durable-local-path approach used for custom theme header
+  /// images.
+  Future<String> _persistCroppedImage(String croppedPath, String prefix) async {
     final docsDir = await getApplicationDocumentsDirectory();
-    final ext = p.extension(picked.path);
+    final ext = p.extension(croppedPath);
     final destPath = p.join(
       docsDir.path,
-      'profile_${DateTime.now().millisecondsSinceEpoch}$ext',
+      '${prefix}_${DateTime.now().millisecondsSinceEpoch}$ext',
     );
-    await File(picked.path).copy(destPath);
+    await File(croppedPath).copy(destPath);
     return destPath;
   }
 
-  Future<void> _pickAvatar() async {
-    final path = await _pickAndPersistImage();
-    if (path != null) setState(() => _avatarPath = path);
+  Future<void> _onAvatarPicked(String croppedPath) async {
+    final path = await _persistCroppedImage(croppedPath, 'avatar');
+    if (mounted) setState(() => _avatarPath = path);
   }
 
-  Future<void> _pickHeaderImage() async {
-    final path = await _pickAndPersistImage();
-    if (path != null) setState(() => _headerImagePath = path);
+  Future<void> _onHeaderImagePicked(String croppedPath) async {
+    final path = await _persistCroppedImage(croppedPath, 'profile_header');
+    if (mounted) setState(() => _headerImagePath = path);
   }
 
   void _save() {
@@ -151,27 +143,47 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                 ),
               ),
               const SizedBox(height: 20),
-              _ImagePickerTile(
-                label: 'Header image',
-                subtitle: 'Shown behind your profile card',
+              CroppingImagePickerField(
                 imagePath: _headerImagePath,
-                onPick: _pickHeaderImage,
-                onClear: _headerImagePath == null
-                    ? null
-                    : () => setState(() => _headerImagePath = null),
-                previewHeight: 100,
+                onImagePicked: _onHeaderImagePicked,
+                onImageRemoved: () =>
+                    setState(() => _headerImagePath = null),
+                aspectWidth: 3600,
+                aspectHeight: 1200,
+                label: 'Header image',
+                cropToolbarTitle: 'Crop Header Image',
               ),
-              const SizedBox(height: 16),
-              _ImagePickerTile(
-                label: 'Profile photo',
-                subtitle: 'Shown as your avatar',
-                imagePath: _avatarPath,
-                onPick: _pickAvatar,
-                onClear: _avatarPath == null
-                    ? null
-                    : () => setState(() => _avatarPath = null),
-                previewHeight: 100,
-                circular: true,
+              const SizedBox(height: 24),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CroppingImagePickerField(
+                    imagePath: _avatarPath,
+                    onImagePicked: _onAvatarPicked,
+                    onImageRemoved: () => setState(() => _avatarPath = null),
+                    aspectWidth: 1,
+                    aspectHeight: 1,
+                    circular: true,
+                    circularSize: 88,
+                    cropToolbarTitle: 'Crop Profile Photo',
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Profile photo', style: textTheme.labelLarge),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Shown as your avatar',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Text('Username', style: textTheme.labelLarge),
@@ -208,91 +220,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
           ),
         );
       },
-    );
-  }
-}
-
-class _ImagePickerTile extends StatelessWidget {
-  final String label;
-  final String subtitle;
-  final String? imagePath;
-  final VoidCallback onPick;
-  final VoidCallback? onClear;
-  final double previewHeight;
-  final bool circular;
-
-  const _ImagePickerTile({
-    required this.label,
-    required this.subtitle,
-    required this.imagePath,
-    required this.onPick,
-    required this.onClear,
-    required this.previewHeight,
-    this.circular = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final hasImage = imagePath != null && File(imagePath!).existsSync();
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        InkWell(
-          onTap: onPick,
-          borderRadius: BorderRadius.circular(circular ? 999 : 14),
-          child: Container(
-            width: previewHeight,
-            height: previewHeight,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(circular ? 999 : 14),
-              image: hasImage
-                  ? DecorationImage(
-                      image: FileImage(File(imagePath!)),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
-            ),
-            child: hasImage
-                ? null
-                : Icon(
-                    Icons.add_photo_alternate_outlined,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: textTheme.labelLarge),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              if (onClear != null) ...[
-                const SizedBox(height: 4),
-                TextButton(
-                  onPressed: onClear,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 0),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Remove'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

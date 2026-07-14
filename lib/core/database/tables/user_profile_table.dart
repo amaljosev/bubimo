@@ -5,11 +5,17 @@
 /// This is a single-row ("singleton") table — there is only ever one user
 /// profile in this app, keyed by a fixed id rather than a generated one.
 ///
-/// v3 -> v4 added four optional personalization columns (see the combined
-/// Profile & Analytics screen milestone): [columnDiaryName],
-/// [columnAvatarPath], [columnHeaderImagePath]. [columnName] itself is
-/// reused as the "username" field rather than adding a parallel column —
-/// it was unused free text before this milestone.
+/// [columnName] doubles as the "username" shown on the Profile &
+/// Analytics screen (reused rather than adding a parallel column).
+/// [columnDiaryName] / [columnAvatarPath] / [columnHeaderImagePath] are
+/// optional personalization fields also shown on that screen.
+///
+/// Pre-launch schema collapse: the personalization columns were
+/// originally added via an ALTER TABLE migration during development —
+/// see `AppDatabase`'s version-history note. None of that migration SQL
+/// applies anymore now that the database is resetting to version 1, so
+/// it's been removed; [createTableSql] below already includes those
+/// columns directly.
 class UserProfileTable {
   UserProfileTable._();
 
@@ -25,7 +31,6 @@ class UserProfileTable {
   static const String columnName = 'name';
   static const String columnOnboardingCompleted = 'onboarding_completed';
 
-  /// Optional custom name for the diary itself (e.g. "Amal's Journal"),
   /// shown in place of a generic "My Diary" label when set.
   static const String columnDiaryName = 'diary_name';
 
@@ -48,13 +53,4 @@ class UserProfileTable {
       $columnHeaderImagePath TEXT
     );
   ''';
-
-  /// Migration statements for existing installs (schema v3 -> v4): adds
-  /// the three new nullable personalization columns. No DEFAULT needed
-  /// since all three are nullable — existing rows simply get NULL.
-  static const List<String> addProfilePersonalizationColumnsSql = [
-    'ALTER TABLE $tableName ADD COLUMN $columnDiaryName TEXT;',
-    'ALTER TABLE $tableName ADD COLUMN $columnAvatarPath TEXT;',
-    'ALTER TABLE $tableName ADD COLUMN $columnHeaderImagePath TEXT;',
-  ];
 }

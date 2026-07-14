@@ -13,23 +13,25 @@
 /// string, since the app's color picker is RGBO-based and this avoids a
 /// lossy hex round-trip for the opacity channel.
 ///
-/// Version 8 replaced the single `accent_color` column with 3 new
-/// distinct role-based color columns ([columnSecondaryColor],
-/// [columnSurfaceColor], [columnTextColor]) plus an explicit
-/// [columnIsDark] flag — see `AppDatabase._onUpgrade` oldVersion < 8.
-///
-/// Version 9 adds a SECOND, independent set of 5 color columns
-/// (`*_dark` suffix: [columnPrimaryColorDark] etc.) so a single custom
-/// theme can remember its own Light Mode colors AND its own Dark Mode
-/// colors at once, instead of overwriting one flat set every time the
+/// Stores TWO independent color palettes per theme: [columnPrimaryColor]
+/// / [columnSecondaryColor] / [columnSurfaceColor] / [columnBackgroundColor]
+/// / [columnTextColor] hold the Light Mode palette, and the `*_dark`
+/// -suffixed columns ([columnPrimaryColorDark] etc.) hold the Dark Mode
+/// palette, so a single custom theme remembers its own colors for both
+/// modes instead of one flat set that gets overwritten every time the
 /// Dark Mode toggle is flipped on the Create/Edit Custom Theme screen.
-/// The original (non-suffixed) columns keep storing the LIGHT Mode
-/// palette; the new `*_dark` columns store the DARK Mode palette.
-/// [columnIsDark] continues to record which mode is currently active/
-/// was last edited. The `*_dark` columns are nullable — a theme that
-/// has never been edited in Dark Mode simply has no dark palette yet,
-/// and the form falls back to the Nightfall built-in's defaults for
-/// that case (see `CustomThemeFormBloc._defaultPaletteFor`).
+/// [columnIsDark] records which mode is currently active/was last
+/// edited. The `*_dark` columns are nullable — a theme that has never
+/// been edited in Dark Mode simply has no dark palette yet, and the
+/// form falls back to the Nightfall built-in's defaults for that case
+/// (see `CustomThemeFormBloc._defaultPaletteFor`).
+///
+/// Pre-launch schema collapse: this table went through several
+/// drop+recreate migrations during development as its column layout
+/// evolved — see `AppDatabase`'s version-history note. None of that
+/// migration SQL applies anymore now that the database is resetting to
+/// version 1, so [dropTableSql] has been removed; [createTableSql]
+/// below already reflects the final shape directly.
 class CustomThemesTable {
   CustomThemesTable._();
 
@@ -46,7 +48,7 @@ class CustomThemesTable {
   static const String columnBackgroundColor = 'background_color';
   static const String columnTextColor = 'text_color';
 
-  // Dark Mode palette — added in version 9.
+  // Dark Mode palette.
   static const String columnPrimaryColorDark = 'primary_color_dark';
   static const String columnSecondaryColorDark = 'secondary_color_dark';
   static const String columnSurfaceColorDark = 'surface_color_dark';
@@ -81,14 +83,4 @@ class CustomThemesTable {
       $columnCreatedAt TEXT NOT NULL
     );
   ''';
-
-  /// Migration for installs already on a previous `custom_themes`
-  /// schema: drop and recreate, following the same precedent as the
-  /// v2->v3, v5->v6, and v7->v8 migrations on this same table. Custom
-  /// themes are user-created convenience data, not irreplaceable diary
-  /// content, so a clean recreate is an acceptable trade-off versus
-  /// writing a column-by-column data migration for a layout that's
-  /// changing anyway. Existing custom themes will need to be recreated
-  /// by the user after this upgrade.
-  static const String dropTableSql = 'DROP TABLE IF EXISTS $tableName;';
 }
