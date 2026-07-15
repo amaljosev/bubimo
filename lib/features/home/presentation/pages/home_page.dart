@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:bubimo/core/router/app_router.dart';
 import 'package:bubimo/core/theme/background_image_theme_extension.dart';
 import 'package:bubimo/core/utils/entry_grouping_utils.dart';
+import 'package:bubimo/features/shared/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -76,13 +77,17 @@ class _HomeViewState extends State<_HomeView> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      endDrawer: AppDrawer(
+        appName: 'Routine',
+        selectedRoute: null,
+        onDiaryLockTap: () {},
+        onBackupTap: () {},
+        onExportTap: () {},
+        onHelpTap: () {},
+        onShareAppTap: () {},
+        onSettingsTap: () {},
+      ),
       body: CustomScrollView(
-        // Stretch only ever fires on bouncy overscroll — without this
-        // explicit physics, some platforms (notably Android's default
-        // ClampingScrollPhysics) never overscroll at all, so the
-        // SliverAppBar's `stretch`/`zoomBackground` effect has nothing
-        // to react to and silently does nothing. Matches Timeline's
-        // CustomScrollView, which already sets this.
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
@@ -110,99 +115,100 @@ class _HomeViewState extends State<_HomeView> {
             stretchTriggerOffset: 50,
             onStretchTrigger: () async {},
             flexibleSpace: headerImagePath == null
-    ? null
-    : FlexibleSpaceBar(
-        stretchModes: const [
-          StretchMode.zoomBackground,
-          StretchMode.fadeTitle,
-        ],
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            BackgroundHeaderImage(path: headerImagePath),
-
-            // Frosted transition band: blurs only the bottom portion
-            // of the image itself (not whatever sits behind the
-            // sliver boundary), with the blur intensity ramping in
-            // via ShaderMask rather than switching on at a hard edge.
-            // Because this sits inside the image's own Stack, it
-            // always has real image content beneath it regardless of
-            // scroll offset — unlike a separate BackdropFilter widget
-            // positioned below the sliver, which only has whatever
-            // happens to be rendered there at that scroll position.
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: _headerExpandedHeight * 0.5,
-              child: ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  // Alpha ramp controls how much blur "shows through"
-                  // at each height — 0 at top (no blur) to full blur
-                  // at the very bottom, so the transition itself
-                  // feels gradual instead of a visible blur/no-blur
-                  // line.
-                  colors: [Colors.transparent, Colors.black],
-                  stops: [0.0, 0.85],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-            ),
-
-            // Readability scrim up top, unchanged.
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment(0, -0.2),
-                  colors: [
-                    Color.fromRGBO(0, 0, 0, 0.35),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-
-            // Color fade to the exact body surface color — this is
-            // what actually dissolves the image into the page
-            // background by the time the sliver boundary is reached.
-            // Placed after the blur layer so it composites on top,
-            // softening the blurred pixels into flat color at the
-            // very bottom rather than leaving softened-but-still-
-            // visible image detail right at the seam.
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: _headerExpandedHeight * 0.55,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      colorScheme.surface.withValues(alpha: 0),
-                      colorScheme.surface.withValues(alpha: 0.55),
-                      colorScheme.surface,
+                ? null
+                : FlexibleSpaceBar(
+                    stretchModes: const [
+                      StretchMode.zoomBackground,
+                      StretchMode.fadeTitle,
                     ],
-                    stops: const [0.0, 0.7, 1.0],
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        BackgroundHeaderImage(path: headerImagePath),
+
+                        // Frosted transition band: blurs only the bottom portion
+                        // of the image itself (not whatever sits behind the
+                        // sliver boundary), with the blur intensity ramping in
+                        // via ShaderMask rather than switching on at a hard edge.
+                        // Because this sits inside the image's own Stack, it
+                        // always has real image content beneath it regardless of
+                        // scroll offset — unlike a separate BackdropFilter widget
+                        // positioned below the sliver, which only has whatever
+                        // happens to be rendered there at that scroll position.
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: _headerExpandedHeight * 0.5,
+                          child: ShaderMask(
+                            shaderCallback: (rect) => const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              // Alpha ramp controls how much blur "shows through"
+                              // at each height — 0 at top (no blur) to full blur
+                              // at the very bottom, so the transition itself
+                              // feels gradual instead of a visible blur/no-blur
+                              // line.
+                              colors: [Colors.transparent, Colors.black],
+                              stops: [0.0, 0.85],
+                            ).createShader(rect),
+                            blendMode: BlendMode.dstIn,
+                            child: ClipRect(
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(
+                                  sigmaX: 24,
+                                  sigmaY: 24,
+                                ),
+                                child: const SizedBox.expand(),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Readability scrim up top, unchanged.
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment(0, -0.2),
+                              colors: [
+                                Color.fromRGBO(0, 0, 0, 0.35),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Color fade to the exact body surface color — this is
+                        // what actually dissolves the image into the page
+                        // background by the time the sliver boundary is reached.
+                        // Placed after the blur layer so it composites on top,
+                        // softening the blurred pixels into flat color at the
+                        // very bottom rather than leaving softened-but-still-
+                        // visible image detail right at the seam.
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            height: _headerExpandedHeight * 0.55,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  colorScheme.surface.withValues(alpha: 0),
+                                  colorScheme.surface.withValues(alpha: 0.55),
+                                  colorScheme.surface,
+                                ],
+                                stops: const [0.0, 0.7, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-            
           ),
-          
-          
+
           SliverToBoxAdapter(
             child: Column(
               children: [
