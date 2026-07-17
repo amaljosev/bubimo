@@ -69,6 +69,18 @@ class AppDatabase {
     await db.execute(UserProfileTable.createTableSql);
     await db.execute(AppSettingsTable.createTableSql);
     await db.execute(CustomThemesTable.createTableSql);
+
+    // Seed the single app_settings row. Every feature that reads/writes
+    // app-wide settings (reminders, theme, font, app lock) assumes this
+    // singleton row already exists and only ever UPDATEs it — none of
+    // them INSERT it themselves. Without this, the very first read
+    // (e.g. opening the App Lock screen before visiting Settings)
+    // fails with "no rows found" since the table is empty right after
+    // creation. All other columns rely on their own DEFAULT / NULL, so
+    // only the id needs to be supplied here.
+    await db.insert(AppSettingsTable.tableName, {
+      AppSettingsTable.columnId: AppSettingsTable.singletonId,
+    });
   }
 
   

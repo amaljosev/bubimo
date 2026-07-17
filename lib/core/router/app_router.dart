@@ -2,6 +2,14 @@
 
 import 'package:bubimo/core/di/injection.dart';
 import 'package:bubimo/core/navigation/main_shell.dart';
+import 'package:bubimo/features/app_lock/presentation/bloc/settings_bloc/app_lock_settings_bloc.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/app_lock_listing_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/biometric_setup_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/device_credential_setup_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/pattern_setup_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/pin_setup_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/security_question_recovery_screen.dart';
+import 'package:bubimo/features/app_lock/presentation/pages/security_question_setup_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
@@ -29,6 +37,23 @@ class AppRoutes {
   static const String reminderSettings = '/settings/reminders';
   static const String settings = '/settings';
   static const String favorites = '/favorites';
+
+  // App Lock — listing/settings screen plus one setup route per lock
+  // method, and the security question setup step every method's
+  // successful setup routes into. The runtime lock gate
+  // (LockGateScreen) is intentionally NOT one of these routes — it
+  // needs to intercept app launch/resume before any other screen is
+  // visible, so it's inserted above GoRouter entirely rather than
+  // pushed as a normal route. See lock_gate_screen.dart's doc comment
+  // for the integration point.
+  static const String lockListing = '/app-lock';
+  static const String setupPin = '/app-lock/setup/pin';
+  static const String setupPattern = '/app-lock/setup/pattern';
+  static const String setupBiometric = '/app-lock/setup/biometric';
+  static const String setupDeviceCredential =
+      '/app-lock/setup/device-credential';
+  static const String setupSecurityQuestion =
+      '/app-lock/setup/security-question';
 
   // NOTE: Timeline, Diary, Themes, and Profile are the four
   // bottom-navigation tabs (reached via '/', inside MainShell) — none of
@@ -62,6 +87,37 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.home,
       builder: (context, state) => const MainShell(),
+    ),
+    GoRoute(
+      path: AppRoutes.lockListing,
+      // AppLockSettingsBloc is a factory (see injection.dart) — each
+      // visit gets a fresh instance, mirroring AppRoutes.favorites and
+      // AppRoutes.reminderSettings below.
+      builder: (context, state) => BlocProvider(
+        create: (_) => getIt<AppLockSettingsBloc>()
+          ..add(const LoadLockSettings()),
+        child: const AppLockListingScreen(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.setupPin,
+      builder: (context, state) => const PinSetupScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.setupPattern,
+      builder: (context, state) => const PatternSetupScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.setupBiometric,
+      builder: (context, state) => const BiometricSetupScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.setupDeviceCredential,
+      builder: (context, state) => const DeviceCredentialSetupScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.setupSecurityQuestion,
+      builder: (context, state) => const SecurityQuestionSetupScreen(),
     ),
     GoRoute(
       path: AppRoutes.diaryForm,
@@ -123,5 +179,6 @@ final GoRouter appRouter = GoRouter(
         child: const FavoritesPage(),
       ),
     ),
+
   ],
 );

@@ -43,3 +43,21 @@ final class ValidationFailure extends Failure {
 final class UnexpectedFailure extends Failure {
   const UnexpectedFailure([super.message = 'An unexpected error occurred.']);
 }
+
+/// Device biometric or device-credential authentication couldn't run —
+/// no hardware, nothing enrolled, or the platform call itself failed.
+/// Mirrors [BiometricException] in exceptions.dart. Distinct from a
+/// normal failed/cancelled authentication attempt, which is a `false`
+/// success value rather than a Failure.
+final class BiometricFailure extends Failure {
+  const BiometricFailure([
+    super.message = 'Biometric authentication is not available.',
+  ]);
+}
+
+/// A lock-specific data error that isn't a generic database failure —
+/// e.g. verifying a PIN/pattern/security answer before one has been
+/// configured. Mirrors [LockException] in exceptions.dart.
+final class LockFailure extends Failure {
+  const LockFailure([super.message = 'App lock is not configured.']);
+}

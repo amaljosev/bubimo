@@ -34,3 +34,20 @@ class CacheException extends AppException {
 class NetworkException extends AppException {
   const NetworkException({required super.message});
 }
+
+/// Thrown by the app lock feature when device biometric authentication
+/// (fingerprint/face) or device-credential authentication cannot run —
+/// no hardware, nothing enrolled, or the underlying platform call
+/// failed. Not thrown for a normal failed/cancelled attempt (that's a
+/// `false` return value, not an exception) — only for setup/hardware
+/// issues that prevent authentication from being attempted at all.
+class BiometricException extends AppException {
+  const BiometricException({required super.message});
+}
+
+/// Thrown by the app lock feature for lock-specific data errors that
+/// aren't generic database failures — e.g. verifying a PIN/pattern/
+/// security answer when none has been configured yet.
+class LockException extends AppException {
+  const LockException({required super.message});
+}

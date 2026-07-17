@@ -27,9 +27,11 @@ class AppSettingsTable {
   static const String columnThemeId = 'theme_id';
   static const String columnFontPreference = 'font_preference';
 
-  /// Stored as one of: 'none', 'biometric', 'pin'.
+  /// Stored as one of: 'none', 'biometric', 'pin', 'pattern',
+  /// 'device_credential'. Only one is active at a time.
   static const String columnLockType = 'lock_type';
   static const String columnLockPinHash = 'lock_pin_hash';
+  static const String columnLockPatternHash = 'lock_pattern_hash';
   static const String columnLockSecurityQuestion = 'lock_security_question';
   static const String columnLockSecurityAnswerHash =
       'lock_security_answer_hash';
@@ -48,6 +50,7 @@ class AppSettingsTable {
       $columnFontPreference TEXT,
       $columnLockType TEXT NOT NULL DEFAULT '$defaultLockType',
       $columnLockPinHash TEXT,
+      $columnLockPatternHash TEXT,
       $columnLockSecurityQuestion TEXT,
       $columnLockSecurityAnswerHash TEXT,
       $columnBiometricEnabled INTEGER NOT NULL DEFAULT 0,

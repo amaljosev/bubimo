@@ -80,7 +80,7 @@ class _HomeViewState extends State<_HomeView> {
       endDrawer: AppDrawer(
         appName: 'Routine',
         selectedRoute: null,
-        onDiaryLockTap: () {},
+        onDiaryLockTap: () => context.push(AppRoutes.lockListing),
         onBackupTap: () {},
         onExportTap: () {},
         onHelpTap: () {},

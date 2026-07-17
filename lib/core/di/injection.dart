@@ -69,6 +69,26 @@ import '../../features/reminders/domain/usecases/get_reminder_settings.dart';
 import '../../features/reminders/domain/usecases/set_reminder.dart';
 import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
 
+// app_lock
+import 'package:local_auth/local_auth.dart';
+import '../../features/app_lock/data/datasources/app_lock_local_datasource.dart';
+import '../../features/app_lock/data/repositories/app_lock_repository_impl.dart';
+import '../../features/app_lock/domain/repositories/app_lock_repository.dart';
+import '../../features/app_lock/domain/usecases/authenticate_biometric.dart';
+import '../../features/app_lock/domain/usecases/disable_lock.dart';
+import '../../features/app_lock/domain/usecases/get_lock_settings.dart';
+import '../../features/app_lock/domain/usecases/set_lock_method.dart';
+import '../../features/app_lock/domain/usecases/set_pattern.dart';
+import '../../features/app_lock/domain/usecases/set_pin.dart';
+import '../../features/app_lock/domain/usecases/set_security_question.dart';
+import '../../features/app_lock/domain/usecases/verify_pattern.dart';
+import '../../features/app_lock/domain/usecases/verify_pin.dart';
+import '../../features/app_lock/domain/usecases/verify_security_answer.dart';
+import '../../features/app_lock/domain/entities/lock_method.dart';
+import '../../features/app_lock/presentation/bloc/settings_bloc/app_lock_settings_bloc.dart';
+import '../../features/app_lock/presentation/bloc/setup_bloc/lock_setup_bloc.dart';
+import '../../features/app_lock/presentation/bloc/lock_gate_bloc/lock_gate_bloc.dart';
+
 final GetIt getIt = GetIt.instance;
 
 /// Registers every dependency the app needs, using manual GetIt
@@ -278,6 +298,74 @@ Future<void> configureDependencies() async {
       getReminderSettings: getIt<GetReminderSettings>(),
       setReminder: getIt<SetReminder>(),
       cancelReminder: getIt<CancelReminder>(),
+    ),
+  );
+
+  // --- app_lock ---
+  if (!getIt.isRegistered<LocalAuthentication>()) {
+    getIt.registerLazySingleton<LocalAuthentication>(
+      () => LocalAuthentication(),
+    );
+  }
+
+  getIt.registerLazySingleton<AppLockLocalDataSource>(
+    () => AppLockLocalDataSource(
+      appDatabase: getIt<AppDatabase>(),
+      localAuth: getIt<LocalAuthentication>(),
+    ),
+  );
+  getIt.registerLazySingleton<AppLockRepository>(
+    () => AppLockRepositoryImpl(getIt<AppLockLocalDataSource>()),
+  );
+
+  getIt.registerLazySingleton(() => GetLockSettings(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(() => SetLockMethod(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(() => DisableLock(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(() => SetPin(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(() => VerifyPin(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(() => SetPattern(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(
+    () => VerifyPattern(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => AuthenticateBiometric(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => SetSecurityQuestion(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => VerifySecurityAnswer(getIt<AppLockRepository>()),
+  );
+
+  getIt.registerFactory(
+    () => AppLockSettingsBloc(
+      getLockSettings: getIt<GetLockSettings>(),
+      setLockMethod: getIt<SetLockMethod>(),
+      disableLock: getIt<DisableLock>(),
+      repository: getIt<AppLockRepository>(),
+    ),
+  );
+
+  // LockSetupBloc needs a LockMethod param at creation time (shared
+  // across PIN/Pattern/SecurityQuestion setup pages) — registered
+  // with registerFactoryParam so callers do
+  // `getIt<LockSetupBloc>(param1: LockMethod.pin)`.
+  getIt.registerFactoryParam<LockSetupBloc, LockMethod, void>(
+    (method, _) => LockSetupBloc(
+      method: method,
+      setPin: getIt<SetPin>(),
+      setPattern: getIt<SetPattern>(),
+      setSecurityQuestion: getIt<SetSecurityQuestion>(),
+    ),
+  );
+
+  getIt.registerFactory(
+    () => LockGateBloc(
+      getLockSettings: getIt<GetLockSettings>(),
+      verifyPin: getIt<VerifyPin>(),
+      verifyPattern: getIt<VerifyPattern>(),
+      authenticateBiometric: getIt<AuthenticateBiometric>(),
+      verifySecurityAnswer: getIt<VerifySecurityAnswer>(),
     ),
   );
 
