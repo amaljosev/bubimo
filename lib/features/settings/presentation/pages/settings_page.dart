@@ -40,73 +40,74 @@ class SettingsPage extends StatelessWidget {
       ),
       body: SafeArea(
         child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          SettingsSection(
-            title: 'Data & Security',
-            children: [
-              SettingsListItem(
-                icon: Icons.lock_outline_rounded,
-                label: 'App Lock',
-              ),
-              SettingsListItem(
-                icon: Icons.backup_outlined,
-                label: 'Backup & Restore',
-              ),
-              SettingsListItem(
-                icon: Icons.ios_share_rounded,
-                label: 'Export Diary',
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SettingsSection(
-            title: 'Preferences',
-            children: [
-              SettingsListItem(
-                icon: Icons.notifications_outlined,
-                label: 'Reminder',
-                onTap: () => context.push(AppRoutes.reminderSettings),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SettingsSection(
-            title: 'Support',
-            children: [
-              SettingsListItem(
-                icon: Icons.help_outline_rounded,
-                label: 'Help',
-              ),
-              SettingsListItem(
-                icon: Icons.privacy_tip_outlined,
-                label: 'Privacy Policy',
-              ),
-              SettingsListItem(
-                icon: Icons.info_outline_rounded,
-                label: 'About This App',
-              ),
-              SettingsListItem(
-                icon: Icons.mail_outline_rounded,
-                label: 'Contact Us',
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SettingsSection(
-            title: 'Spread the Word',
-            children: [
-              SettingsListItem(
-                icon: Icons.share_outlined,
-                label: 'Share App',
-              ),
-              SettingsListItem(
-                icon: Icons.star_outline_rounded,
-                label: 'Rate App',
-              ),
-            ],
-          ),
-        ],
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            SettingsSection(
+              title: 'Data & Security',
+              children: [
+                SettingsListItem(
+                  icon: Icons.lock_outline_rounded,
+                  label: 'App Lock',
+                ),
+                SettingsListItem(
+                  icon: Icons.backup_outlined,
+                  label: 'Backup & Restore',
+                ),
+                SettingsListItem(
+                  icon: Icons.ios_share_rounded,
+                  label: 'Export Diary',
+                  onTap: () => context.push(AppRoutes.importExport),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SettingsSection(
+              title: 'Preferences',
+              children: [
+                SettingsListItem(
+                  icon: Icons.notifications_outlined,
+                  label: 'Reminder',
+                  onTap: () => context.push(AppRoutes.reminderSettings),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SettingsSection(
+              title: 'Support',
+              children: [
+                SettingsListItem(
+                  icon: Icons.help_outline_rounded,
+                  label: 'Help',
+                ),
+                SettingsListItem(
+                  icon: Icons.privacy_tip_outlined,
+                  label: 'Privacy Policy',
+                ),
+                SettingsListItem(
+                  icon: Icons.info_outline_rounded,
+                  label: 'About This App',
+                ),
+                SettingsListItem(
+                  icon: Icons.mail_outline_rounded,
+                  label: 'Contact Us',
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SettingsSection(
+              title: 'Spread the Word',
+              children: [
+                SettingsListItem(
+                  icon: Icons.share_outlined,
+                  label: 'Share App',
+                ),
+                SettingsListItem(
+                  icon: Icons.star_outline_rounded,
+                  label: 'Rate App',
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

@@ -1,6 +1,7 @@
 // lib/features/reminders/data/datasources/local_notification_service.dart
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -8,30 +9,24 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/database/tables/app_settings_table.dart';
 import '../../domain/usecases/get_reminder_settings.dart';
 
-/// Handles both the OS-level local notification scheduling AND the
-/// persistence of reminder settings in `app_settings` — combined into
-/// one class since the original feature plan lists a single data file
-/// for reminders.
-///
-/// Requires `flutter_local_notifications` and `timezone` packages
-/// (not in the original locked dependency list), plus Android's
-/// `POST_NOTIFICATIONS` permission (Android 13+) declared in the
-/// manifest.
 class LocalNotificationService {
   final AppDatabase appDatabase;
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  /// Fixed notification id — there is only ever one diary reminder, so
-  /// scheduling a new one always replaces the previous one at this id.
   static const int _reminderNotificationId = 1001;
 
   LocalNotificationService(this.appDatabase);
 
-  /// Initializes the plugin and timezone data. Call once during app
-  /// startup, before scheduling anything.
   Future<void> initialize() async {
     tz_data.initializeTimeZones();
+
+    try {
+      final localTimezone = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(localTimezone.identifier));
+    } catch (_) {
+      // Leave tz.local at its UTC default — see doc comment above.
+    }
 
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -45,6 +40,23 @@ class LocalNotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.requestNotificationsPermission();
+  }
+
+  Future<void> requestExactAlarmsPermission() async {
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestExactAlarmsPermission();
+  }
+
+  Future<bool> canScheduleExactAlarms() async {
+    final result = await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.canScheduleExactNotifications();
+    return result ?? true;
   }
 
   /// Schedules (or replaces) the daily repeating reminder notification

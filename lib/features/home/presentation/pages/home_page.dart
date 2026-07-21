@@ -5,7 +5,6 @@ import 'dart:ui';
 import 'package:bubimo/core/router/app_router.dart';
 import 'package:bubimo/core/theme/background_image_theme_extension.dart';
 import 'package:bubimo/core/utils/entry_grouping_utils.dart';
-import 'package:bubimo/features/shared/presentation/widgets/app_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -77,15 +76,15 @@ class _HomeViewState extends State<_HomeView> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      endDrawer: AppDrawer(
-        appName: 'Routine',
-        selectedRoute: null,
-        onDiaryLockTap: () => context.push(AppRoutes.lockListing),
-        onBackupTap: () {},
-        onExportTap: () {},
-        onHelpTap: () {},
-        onShareAppTap: () {},
-        onSettingsTap: () {},
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            onPressed: () => context.push(AppRoutes.settings),
+            icon: Icon(Icons.settings),
+          ),
+        ],
       ),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),

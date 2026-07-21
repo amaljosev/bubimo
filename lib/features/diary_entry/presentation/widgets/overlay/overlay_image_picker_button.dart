@@ -1,14 +1,28 @@
 // lib/features/diary_entry/presentation/widgets/overlay/overlay_image_picker_button.dart
 
+import 'dart:io';
+
+import 'package:bubimo/core/error/exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// AppBar button that picks a gallery photo and reports its path via
-/// [onImageSelected] for use as a free-floating overlay image.
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/storage/media_storage_service.dart';
+
+/// AppBar button that picks a gallery photo and reports its durable,
+/// app-owned path via [onImageSelected] for use as a free-floating
+/// overlay image.
 ///
 /// Distinct from [ImagePickerButton] (inline Quill embed): visually
 /// differentiated with a "layers" icon and its own tooltip so users
 /// don't confuse the two very different insertion modes at a glance.
+///
+/// The path reported via [onImageSelected] is the path
+/// [MediaStorageService.saveFile] returns, not `image_picker`'s own
+/// result path — see `media_storage_service.dart`'s doc comment.
+/// [OverlayImage.path] is stored directly in the database (as part of
+/// `DiaryEntry.overlayImages`'s JSON-encoded list), so it must be a
+/// durable, app-owned path from the moment it's first created.
 class OverlayImagePickerButton extends StatefulWidget {
   final ValueChanged<String> onImageSelected;
 
@@ -21,6 +35,7 @@ class OverlayImagePickerButton extends StatefulWidget {
 
 class _OverlayImagePickerButtonState extends State<OverlayImagePickerButton> {
   final ImagePicker _imagePicker = ImagePicker();
+  final MediaStorageService _mediaStorageService = getIt<MediaStorageService>();
 
   // Guards against rapid repeated taps opening the gallery picker
   // multiple times concurrently.
@@ -34,8 +49,18 @@ class _OverlayImagePickerButtonState extends State<OverlayImagePickerButton> {
       final picked = await _imagePicker.pickImage(
         source: ImageSource.gallery,
       );
-      if (picked != null) {
-        widget.onImageSelected(picked.path);
+      if (picked == null) return;
+
+      final savedPath = await _mediaStorageService.saveFile(
+        File(picked.path),
+        category: MediaCategory.diaryImages,
+      );
+      widget.onImageSelected(savedPath);
+    } on MediaStorageException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save image: ${e.message}')),
+        );
       }
     } finally {
       _isPicking = false;

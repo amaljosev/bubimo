@@ -61,3 +61,24 @@ final class BiometricFailure extends Failure {
 final class LockFailure extends Failure {
   const LockFailure([super.message = 'App lock is not configured.']);
 }
+
+/// Copying/writing a picked, cropped, or downloaded file into the app's
+/// own media directory failed. Mirrors [MediaStorageException] in
+/// exceptions.dart. Distinct from [DatabaseFailure] since the DB write
+/// and the file write are two separate operations that fail
+/// independently — this is specifically the file half.
+final class MediaStorageFailure extends Failure {
+  const MediaStorageFailure([
+    super.message = 'Failed to save media file.',
+  ]);
+}
+
+/// Something went wrong creating, reading, or applying a backup/export
+/// bundle — a corrupt archive, a missing/unreadable manifest, or a
+/// manifest whose format version this app build can't parse. Mirrors
+/// [ImportExportException] in exceptions.dart.
+final class ImportExportFailure extends Failure {
+  const ImportExportFailure([
+    super.message = 'Failed to process the backup file.',
+  ]);
+}

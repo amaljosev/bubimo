@@ -1,11 +1,8 @@
 // lib/features/profile/presentation/widgets/edit_profile_sheet.dart
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
+import '../../../../core/storage/media_storage_service.dart';
 import '../../../shared/presentation/widgets/cropping_image_picker_field.dart';
 import '../../domain/entities/user_profile.dart';
 
@@ -60,29 +57,12 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     super.dispose();
   }
 
-  /// Copies the cropper's output file into the app's documents directory
-  /// so it survives independently of the cropper's cache location — the
-  /// same durable-local-path approach used for custom theme header
-  /// images.
-  Future<String> _persistCroppedImage(String croppedPath, String prefix) async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final ext = p.extension(croppedPath);
-    final destPath = p.join(
-      docsDir.path,
-      '${prefix}_${DateTime.now().millisecondsSinceEpoch}$ext',
-    );
-    await File(croppedPath).copy(destPath);
-    return destPath;
+  void _onAvatarPicked(String savedPath) {
+    setState(() => _avatarPath = savedPath);
   }
 
-  Future<void> _onAvatarPicked(String croppedPath) async {
-    final path = await _persistCroppedImage(croppedPath, 'avatar');
-    if (mounted) setState(() => _avatarPath = path);
-  }
-
-  Future<void> _onHeaderImagePicked(String croppedPath) async {
-    final path = await _persistCroppedImage(croppedPath, 'profile_header');
-    if (mounted) setState(() => _headerImagePath = path);
+  void _onHeaderImagePicked(String savedPath) {
+    setState(() => _headerImagePath = savedPath);
   }
 
   void _save() {
@@ -150,6 +130,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                     setState(() => _headerImagePath = null),
                 aspectWidth: 3600,
                 aspectHeight: 1200,
+                category: MediaCategory.profileHeader,
                 label: 'Header image',
                 cropToolbarTitle: 'Crop Header Image',
               ),
@@ -163,6 +144,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                     onImageRemoved: () => setState(() => _avatarPath = null),
                     aspectWidth: 1,
                     aspectHeight: 1,
+                    category: MediaCategory.profileAvatar,
                     circular: true,
                     circularSize: 88,
                     cropToolbarTitle: 'Crop Profile Photo',

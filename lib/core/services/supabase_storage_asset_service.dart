@@ -1,10 +1,9 @@
 // lib/core/services/supabase_storage_asset_service.dart
 
-import 'dart:io';
-
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../storage/media_storage_service.dart';
 
 /// Generic helper for listing and caching files from a folder inside
 /// the app's single Supabase Storage bucket. Shared by the backgrounds
@@ -13,8 +12,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// once, cache locally forever" behavior.
 class SupabaseStorageAssetService {
   final SupabaseClient supabaseClient;
+  final MediaStorageService mediaStorageService;
 
-  const SupabaseStorageAssetService(this.supabaseClient);
+  const SupabaseStorageAssetService(
+    this.supabaseClient,
+    this.mediaStorageService,
+  );
 
   static const String bucketName = 'assets';
 
@@ -37,22 +40,31 @@ class SupabaseStorageAssetService {
         .toList();
   }
 
-  /// Downloads the file at [url] and caches it under
-  /// `<app documents>/<cacheSubfolder>/`, returning the cached local
-  /// path. Skips the download if already cached from a previous fetch.
-  Future<String> downloadAndCache(String url, String cacheSubfolder) async {
-    final documentsDir = await getApplicationDocumentsDirectory();
-    final cacheDir = Directory('${documentsDir.path}/$cacheSubfolder');
-    if (!await cacheDir.exists()) {
-      await cacheDir.create(recursive: true);
-    }
-
+  /// Downloads the file at [url] and caches it via [MediaStorageService]
+  /// under [category], returning the durable local path. Skips the
+  /// download if already cached from a previous fetch.
+  ///
+  /// Previously wrote directly to
+  /// `<app documents>/<cacheSubfolder>/` via raw `dart:io`, bypassing
+  /// [MediaStorageService] entirely — same underlying issue as every
+  /// other picker/download call site (see
+  /// `media_storage_service.dart`'s doc comment): a file saved outside
+  /// the app's single tracked media root can't be reliably found by a
+  /// future backup/export pass, since export only walks
+  /// [MediaStorageService.mediaRoot]. Routing through [saveBytes] here
+  /// means downloaded background presets are included in a `.bubimo`
+  /// export like every other category, with no separate case needed in
+  /// `BackupLocalDataSource`.
+  Future<String> downloadAndCache(
+    String url,
+    MediaCategory category,
+  ) async {
     final fileName = Uri.parse(url).pathSegments.last;
-    final localFile = File('${cacheDir.path}/$fileName');
-
-    if (await localFile.exists()) {
-      return localFile.path;
-    }
+    final existing = await mediaStorageService.findExistingByFileName(
+      fileName,
+      category: category,
+    );
+    if (existing != null) return existing;
 
     final response = await http.get(Uri.parse(url));
     if (response.statusCode != 200) {
@@ -61,7 +73,15 @@ class SupabaseStorageAssetService {
       );
     }
 
-    await localFile.writeAsBytes(response.bodyBytes);
-    return localFile.path;
+    return mediaStorageService.saveBytes(
+      response.bodyBytes,
+      category: category,
+      extension: _extensionFromFileName(fileName),
+    );
+  }
+
+  String _extensionFromFileName(String fileName) {
+    final dotIndex = fileName.lastIndexOf('.');
+    return dotIndex == -1 ? '' : fileName.substring(dotIndex);
   }
 }

@@ -2,16 +2,9 @@
 
 import 'package:bubimo/core/di/injection.dart';
 import 'package:bubimo/core/navigation/main_shell.dart';
-import 'package:bubimo/features/app_lock/presentation/bloc/settings_bloc/app_lock_settings_bloc.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/app_lock_listing_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/biometric_setup_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/device_credential_setup_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/pattern_setup_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/pin_setup_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/security_question_recovery_screen.dart';
-import 'package:bubimo/features/app_lock/presentation/pages/security_question_setup_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../features/backup/presentation/pages/backup_restore_page.dart';
 import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
 import '../../../features/diary_entry/presentation/pages/diary_form_page.dart';
 import '../../../features/favorites/presentation/pages/favorites_page.dart';
@@ -37,50 +30,8 @@ class AppRoutes {
   static const String reminderSettings = '/settings/reminders';
   static const String settings = '/settings';
   static const String favorites = '/favorites';
-
-  // App Lock — listing/settings screen plus one setup route per lock
-  // method, and the security question setup step every method's
-  // successful setup routes into. The runtime lock gate
-  // (LockGateScreen) is intentionally NOT one of these routes — it
-  // needs to intercept app launch/resume before any other screen is
-  // visible, so it's inserted above GoRouter entirely rather than
-  // pushed as a normal route. See lock_gate_screen.dart's doc comment
-  // for the integration point.
-  static const String lockListing = '/app-lock';
-  static const String setupPin = '/app-lock/setup/pin';
-  static const String setupPattern = '/app-lock/setup/pattern';
-  static const String setupBiometric = '/app-lock/setup/biometric';
-  static const String setupDeviceCredential =
-      '/app-lock/setup/device-credential';
-  static const String setupSecurityQuestion =
-      '/app-lock/setup/security-question';
-
-  // NOTE: Timeline, Diary, Themes, and Profile are the four
-  // bottom-navigation tabs (reached via '/', inside MainShell) — none of
-  // them are pushed routes on their own. Favorites is NOT a tab anymore;
-  // it's reachable only as a pushed route (AppRoutes.favorites, above)
-  // from the favorite-count pill on Timeline's header. That pushed route
-  // still lands on the same FavoritesPage/shared DiaryListBloc as
-  // before — only its bottom-nav entry was removed.
-  //
-  // Profile & Analytics is now a single combined tab (ProfileAnalyticsScreen,
-  // rendered by MainShell) rather than a separate pushed screen — there is
-  // no AppRoutes.analytics / AppRoutes.profile anymore. Anywhere that used
-  // to push one of those should instead switch to the Profile tab (e.g.
-  // context.go(AppRoutes.home) plus the shell's own tab index, or simply
-  // rely on the bottom nav) rather than pushing a route.
-  //
-  // Settings used to be a tab; it's now reached only by pushing from
-  // here rather than a tab index.
+  static const String importExport = '/import-export';
 }
-
-/// App-wide router. Add new routes here as each milestone introduces new
-/// screens — this file is updated incrementally, never regenerated from
-/// scratch, so existing routes/behavior are preserved.
-///
-/// Diary Lock, Backup & Restore, Import & Export, Search, Onboarding,
-/// and Settings Hub routes are intentionally not yet added — those
-/// features haven't been generated yet.
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.home,
   routes: [
@@ -88,37 +39,7 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.home,
       builder: (context, state) => const MainShell(),
     ),
-    GoRoute(
-      path: AppRoutes.lockListing,
-      // AppLockSettingsBloc is a factory (see injection.dart) — each
-      // visit gets a fresh instance, mirroring AppRoutes.favorites and
-      // AppRoutes.reminderSettings below.
-      builder: (context, state) => BlocProvider(
-        create: (_) => getIt<AppLockSettingsBloc>()
-          ..add(const LoadLockSettings()),
-        child: const AppLockListingScreen(),
-      ),
-    ),
-    GoRoute(
-      path: AppRoutes.setupPin,
-      builder: (context, state) => const PinSetupScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.setupPattern,
-      builder: (context, state) => const PatternSetupScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.setupBiometric,
-      builder: (context, state) => const BiometricSetupScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.setupDeviceCredential,
-      builder: (context, state) => const DeviceCredentialSetupScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.setupSecurityQuestion,
-      builder: (context, state) => const SecurityQuestionSetupScreen(),
-    ),
+    
     GoRoute(
       path: AppRoutes.diaryForm,
       builder: (context, state) {
@@ -178,6 +99,16 @@ final GoRouter appRouter = GoRouter(
         value: getIt<DiaryListBloc>()..add(const LoadDiaryEntries()),
         child: const FavoritesPage(),
       ),
+    ),
+    GoRoute(
+      path: AppRoutes.importExport,
+      // BackupRestorePage provides its own BackupBloc internally (via
+      // getIt, registered as a factory) rather than this route
+      // providing it — unlike AppRoutes.favorites/reminderSettings
+      // above, there's no initial data load to dispatch here; the bloc
+      // starts at BackupStatus.idle and only does anything once the
+      // user taps Export or picks an import file.
+      builder: (context, state) => const BackupRestorePage(),
     ),
 
   ],

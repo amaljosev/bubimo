@@ -1,5 +1,6 @@
 // lib/core/di/injection.dart
 
+import 'package:bubimo/features/backup/presentation/bloc/backup_bloc.dart';
 import 'package:bubimo/features/home/presentation/bloc/diary_list/diary_list_bloc.dart';
 import 'package:bubimo/features/theme/data/datasources/theme_local_data_source.dart';
 import 'package:bubimo/features/theme/data/repositories/theme_repository_impl.dart';
@@ -8,6 +9,7 @@ import 'package:get_it/get_it.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../database/app_database.dart';
+import '../storage/media_storage_service.dart';
 
 // diary_entry
 import '../../features/diary_entry/data/datasources/diary_local_data_source.dart';
@@ -19,6 +21,13 @@ import '../../features/diary_entry/domain/usecases/get_all_diary_entries.dart';
 import '../../features/diary_entry/domain/usecases/get_diary_entry_by_id.dart';
 import '../../features/diary_entry/domain/usecases/update_diary_entry.dart';
 import '../../features/diary_entry/presentation/bloc/diary_form/diary_form_bloc.dart';
+
+// backup (Import & Export)
+import '../../features/backup/data/datasources/backup_local_data_source.dart';
+import '../../features/backup/data/repositories/backup_repository_impl.dart';
+import '../../features/backup/domain/repositories/backup_repository.dart';
+import '../../features/backup/domain/usecases/export_diary_backup.dart';
+import '../../features/backup/domain/usecases/import_diary_backup.dart';
 
 // diary_entry (stickers)
 import '../../features/diary_entry/data/datasources/supabase_sticker_data_source.dart';
@@ -65,29 +74,11 @@ import '../services/supabase_storage_asset_service.dart';
 // reminders
 import '../../features/reminders/data/datasources/local_notification_service.dart';
 import '../../features/reminders/domain/usecases/cancel_reminder.dart';
+import '../../features/reminders/domain/usecases/check_reminder_permissions.dart';
 import '../../features/reminders/domain/usecases/get_reminder_settings.dart';
 import '../../features/reminders/domain/usecases/set_reminder.dart';
 import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
 
-// app_lock
-import 'package:local_auth/local_auth.dart';
-import '../../features/app_lock/data/datasources/app_lock_local_datasource.dart';
-import '../../features/app_lock/data/repositories/app_lock_repository_impl.dart';
-import '../../features/app_lock/domain/repositories/app_lock_repository.dart';
-import '../../features/app_lock/domain/usecases/authenticate_biometric.dart';
-import '../../features/app_lock/domain/usecases/disable_lock.dart';
-import '../../features/app_lock/domain/usecases/get_lock_settings.dart';
-import '../../features/app_lock/domain/usecases/set_lock_method.dart';
-import '../../features/app_lock/domain/usecases/set_pattern.dart';
-import '../../features/app_lock/domain/usecases/set_pin.dart';
-import '../../features/app_lock/domain/usecases/set_security_question.dart';
-import '../../features/app_lock/domain/usecases/verify_pattern.dart';
-import '../../features/app_lock/domain/usecases/verify_pin.dart';
-import '../../features/app_lock/domain/usecases/verify_security_answer.dart';
-import '../../features/app_lock/domain/entities/lock_method.dart';
-import '../../features/app_lock/presentation/bloc/settings_bloc/app_lock_settings_bloc.dart';
-import '../../features/app_lock/presentation/bloc/setup_bloc/lock_setup_bloc.dart';
-import '../../features/app_lock/presentation/bloc/lock_gate_bloc/lock_gate_bloc.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -108,6 +99,16 @@ Future<void> configureDependencies() async {
 
   // Ensure the database is opened before any feature tries to use it.
   await getIt<AppDatabase>().database;
+
+  // Single app-wide entry point for turning a picked/cropped file or a
+  // block of downloaded bytes into a durable, app-owned file. Every
+  // feature that accepts a photo (diary_entry, profile, theme) depends
+  // on this the same way every feature depends on AppDatabase for rows
+  // — see media_storage_service.dart's doc comment for why storing the
+  // raw image_picker/image_cropper path directly is unsafe.
+  getIt.registerLazySingleton<MediaStorageService>(
+    () => const MediaStorageService(),
+  );
 
   // --- diary_entry ---
   getIt.registerLazySingleton<DiaryLocalDataSource>(
@@ -131,6 +132,37 @@ Future<void> configureDependencies() async {
       createDiaryEntry: getIt<CreateDiaryEntry>(),
       updateDiaryEntry: getIt<UpdateDiaryEntry>(),
       getDiaryEntryById: getIt<GetDiaryEntryById>(),
+    ),
+  );
+
+  // --- backup (Import & Export) ---
+  // Depends on DiaryLocalDataSource (registered just above) and
+  // MediaStorageService (registered under --- Core ---) — both must be
+  // registered before this block runs, hence its placement here rather
+  // than alongside an alphabetically-later feature.
+  getIt.registerLazySingleton<BackupLocalDataSource>(
+    () => BackupLocalDataSource(
+      diaryLocalDataSource: getIt<DiaryLocalDataSource>(),
+      mediaStorageService: getIt<MediaStorageService>(),
+    ),
+  );
+  getIt.registerLazySingleton<BackupRepository>(
+    () => BackupRepositoryImpl(getIt<BackupLocalDataSource>()),
+  );
+  getIt.registerLazySingleton(
+    () => ExportDiaryBackup(getIt<BackupRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => ImportDiaryBackup(getIt<BackupRepository>()),
+  );
+  // Factory, not singleton — same reasoning as DiaryFormBloc just
+  // above: a fresh instance per visit to the page, not one shared
+  // instance whose stale exportResult/importResult could leak into a
+  // later, unrelated visit.
+  getIt.registerFactory(
+    () => BackupBloc(
+      exportDiaryBackup: getIt<ExportDiaryBackup>(),
+      importDiaryBackup: getIt<ImportDiaryBackup>(),
     ),
   );
 
@@ -266,7 +298,10 @@ Future<void> configureDependencies() async {
   // --- backgrounds ---
   // SupabaseClient is registered above (diary_entry stickers section).
   getIt.registerLazySingleton(
-    () => SupabaseStorageAssetService(getIt<SupabaseClient>()),
+    () => SupabaseStorageAssetService(
+      getIt<SupabaseClient>(),
+      getIt<MediaStorageService>(),
+    ),
   );
   getIt.registerLazySingleton(
     () => SupabaseBackgroundDataSource(getIt<SupabaseStorageAssetService>()),
@@ -292,83 +327,33 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(
     () => CancelReminder(getIt<LocalNotificationService>()),
   );
+  // CheckReminderPermissions needs LocalNotificationService: its
+  // exact-alarm status check goes through
+  // LocalNotificationService.canScheduleExactAlarms() rather than
+  // permission_handler directly — permission_handler's
+  // Permission.scheduleExactAlarm.status has a filed upstream bug
+  // where it can report granted even when the OS has it denied (see
+  // that use case's doc comment). Notification-permission status
+  // still goes through permission_handler as normal.
+  getIt.registerLazySingleton(
+    () => CheckReminderPermissions(getIt<LocalNotificationService>()),
+  );
+  // RequestReminderPermissions ALSO needs LocalNotificationService, for
+  // the same reason plus its own exact-alarm request — same dependency
+  // LocalNotificationService's own constructor already registered
+  // above, so no new registration is needed for it.
+  getIt.registerLazySingleton(
+    () => RequestReminderPermissions(getIt<LocalNotificationService>()),
+  );
 
   getIt.registerFactory(
     () => ReminderSettingsBloc(
       getReminderSettings: getIt<GetReminderSettings>(),
       setReminder: getIt<SetReminder>(),
       cancelReminder: getIt<CancelReminder>(),
+      checkReminderPermissions: getIt<CheckReminderPermissions>(),
+      requestReminderPermissions: getIt<RequestReminderPermissions>(),
     ),
   );
 
-  // --- app_lock ---
-  if (!getIt.isRegistered<LocalAuthentication>()) {
-    getIt.registerLazySingleton<LocalAuthentication>(
-      () => LocalAuthentication(),
-    );
-  }
-
-  getIt.registerLazySingleton<AppLockLocalDataSource>(
-    () => AppLockLocalDataSource(
-      appDatabase: getIt<AppDatabase>(),
-      localAuth: getIt<LocalAuthentication>(),
-    ),
-  );
-  getIt.registerLazySingleton<AppLockRepository>(
-    () => AppLockRepositoryImpl(getIt<AppLockLocalDataSource>()),
-  );
-
-  getIt.registerLazySingleton(() => GetLockSettings(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(() => SetLockMethod(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(() => DisableLock(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(() => SetPin(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(() => VerifyPin(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(() => SetPattern(getIt<AppLockRepository>()));
-  getIt.registerLazySingleton(
-    () => VerifyPattern(getIt<AppLockRepository>()),
-  );
-  getIt.registerLazySingleton(
-    () => AuthenticateBiometric(getIt<AppLockRepository>()),
-  );
-  getIt.registerLazySingleton(
-    () => SetSecurityQuestion(getIt<AppLockRepository>()),
-  );
-  getIt.registerLazySingleton(
-    () => VerifySecurityAnswer(getIt<AppLockRepository>()),
-  );
-
-  getIt.registerFactory(
-    () => AppLockSettingsBloc(
-      getLockSettings: getIt<GetLockSettings>(),
-      setLockMethod: getIt<SetLockMethod>(),
-      disableLock: getIt<DisableLock>(),
-      repository: getIt<AppLockRepository>(),
-    ),
-  );
-
-  // LockSetupBloc needs a LockMethod param at creation time (shared
-  // across PIN/Pattern/SecurityQuestion setup pages) — registered
-  // with registerFactoryParam so callers do
-  // `getIt<LockSetupBloc>(param1: LockMethod.pin)`.
-  getIt.registerFactoryParam<LockSetupBloc, LockMethod, void>(
-    (method, _) => LockSetupBloc(
-      method: method,
-      setPin: getIt<SetPin>(),
-      setPattern: getIt<SetPattern>(),
-      setSecurityQuestion: getIt<SetSecurityQuestion>(),
-    ),
-  );
-
-  getIt.registerFactory(
-    () => LockGateBloc(
-      getLockSettings: getIt<GetLockSettings>(),
-      verifyPin: getIt<VerifyPin>(),
-      verifyPattern: getIt<VerifyPattern>(),
-      authenticateBiometric: getIt<AuthenticateBiometric>(),
-      verifySecurityAnswer: getIt<VerifySecurityAnswer>(),
-    ),
-  );
-
-  // --- Feature registrations go above this line, added milestone by ---
-  // --- milestone, grouped by feature with a comment header each time. ---
 }

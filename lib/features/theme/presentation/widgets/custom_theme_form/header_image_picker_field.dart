@@ -1,5 +1,6 @@
 // lib/features/theme/presentation/widgets/custom_theme_form/header_image_picker_field.dart
 
+import 'package:bubimo/core/storage/media_storage_service.dart';
 import 'package:bubimo/features/shared/presentation/widgets/cropping_image_picker_field.dart';
 import 'package:flutter/material.dart';
 
@@ -29,6 +30,7 @@ class HeaderImagePickerField extends StatelessWidget {
       onImageRemoved: onImageRemoved,
       aspectWidth: 3600,
       aspectHeight: 1200,
+      category: MediaCategory.themeHeaders,
       label: 'Header image (optional)',
       cropToolbarTitle: 'Crop Header Image',
     );

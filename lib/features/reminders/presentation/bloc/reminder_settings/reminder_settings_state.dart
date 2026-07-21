@@ -1,7 +1,9 @@
 // lib/features/reminders/presentation/bloc/reminder_settings/reminder_settings_state.dart
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../domain/usecases/check_reminder_permissions.dart';
 import '../../../domain/usecases/get_reminder_settings.dart';
 
 enum ReminderSettingsStatus { initial, loading, loaded, updating, failure }
@@ -12,29 +14,60 @@ class ReminderSettingsState extends Equatable {
   final bool enabled;
   final String? errorMessage;
 
+  /// Live OS permission status, refreshed on screen open and again on
+  /// every app resume (see `didChangeAppLifecycleState` in the page)
+  /// so the banner reflects reality even if the user grants/revokes a
+  /// permission from system Settings without touching this screen.
+  ///
+  /// Null only before the very first check completes — the banner
+  /// stays hidden during that brief window rather than assuming
+  /// either granted or denied.
+  final ReminderPermissionStatus? permissionStatus;
+
   const ReminderSettingsState({
     this.status = ReminderSettingsStatus.initial,
     this.time,
     this.enabled = false,
     this.errorMessage,
+    this.permissionStatus,
   });
 
   bool get isUpdating => status == ReminderSettingsStatus.updating;
+
+  /// True once a permission check has actually completed and found
+  /// something missing. Distinct from `permissionStatus == null`,
+  /// which means "haven't checked yet" rather than "all granted".
+  bool get hasPermissionIssue =>
+      permissionStatus != null && !permissionStatus!.allGranted;
 
   ReminderSettingsState copyWith({
     ReminderSettingsStatus? status,
     ReminderTime? time,
     bool? enabled,
     String? errorMessage,
+    // Nullable field needs the "was a value passed at all?" wrapper —
+    // a plain `ReminderPermissionStatus?` positional param can't tell
+    // "keep existing" apart from "explicitly clear to null", the same
+    // pattern already used for SecurityBloc's inlineError.
+    ValueGetter<ReminderPermissionStatus?>? permissionStatus,
   }) {
     return ReminderSettingsState(
       status: status ?? this.status,
       time: time ?? this.time,
       enabled: enabled ?? this.enabled,
       errorMessage: errorMessage,
+      permissionStatus: permissionStatus != null
+          ? permissionStatus()
+          : this.permissionStatus,
     );
   }
 
   @override
-  List<Object?> get props => [status, time, enabled, errorMessage];
+  List<Object?> get props => [
+    status,
+    time,
+    enabled,
+    errorMessage,
+    permissionStatus,
+  ];
 }

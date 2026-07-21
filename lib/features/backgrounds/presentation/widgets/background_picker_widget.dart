@@ -2,11 +2,13 @@
 
 import 'dart:io';
 
+import 'package:bubimo/core/error/exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/storage/media_storage_service.dart';
 import '../bloc/background_picker/background_picker_bloc.dart';
 import '../bloc/background_picker/background_picker_event.dart';
 import '../bloc/background_picker/background_picker_state.dart';
@@ -53,6 +55,9 @@ class _BackgroundPickerWidgetState extends State<BackgroundPickerWidget>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final ImagePicker _imagePicker = ImagePicker();
+  final MediaStorageService _mediaStorageService = getIt<MediaStorageService>();
+
+  bool _isPicking = false;
 
   @override
   void initState() {
@@ -67,14 +72,31 @@ class _BackgroundPickerWidgetState extends State<BackgroundPickerWidget>
   }
 
   Future<void> _pickFromGallery() async {
-    final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-    if (picked != null) {
+    if (_isPicking) return;
+    _isPicking = true;
+
+    try {
+      final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+
+      final savedPath = await _mediaStorageService.saveFile(
+        File(picked.path),
+        category: MediaCategory.diaryBackgrounds,
+      );
       widget.onSelected(
         SelectedBackground(
           type: BackgroundSourceType.gallery,
-          path: picked.path,
+          path: savedPath,
         ),
       );
+    } on MediaStorageException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save image: ${e.message}')),
+        );
+      }
+    } finally {
+      _isPicking = false;
     }
   }
 

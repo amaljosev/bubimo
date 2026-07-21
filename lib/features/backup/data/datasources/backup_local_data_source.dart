@@ -1,0 +1,509 @@
+// lib/features/backup/data/datasources/backup_local_data_source.dart
+
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../../../../core/error/exceptions.dart';
+import '../../../../core/storage/media_storage_service.dart';
+import '../../../../core/utils/id_generator.dart';
+import '../../../diary_entry/data/datasources/diary_local_data_source.dart';
+import '../../../diary_entry/data/models/diary_entry_model.dart';
+import '../../../diary_entry/domain/entities/diary_entry.dart';
+import '../../domain/entities/backup_manifest.dart';
+import '../../domain/entities/export_result.dart';
+import '../../domain/entities/import_result.dart';
+import '../models/backup_diary_entry_model.dart';
+
+/// Format version of the `.bubimo` bundle this app build writes and can
+/// read. See [BackupManifest.formatVersion]'s doc comment — this is
+/// independent of the app's own version number and the DB schema
+/// version.
+const int kBackupFormatVersion = 1;
+
+/// File extension used for exported bundles. A `.bubimo` file is a
+/// plain zip archive underneath — the custom extension exists purely
+/// so the file is recognizable to the user and doesn't invite the OS
+/// file manager to offer "extract" the way a bare `.zip` would.
+const String kBackupFileExtension = '.bubimo';
+
+/// Mirrors pubspec.yaml's `version:` field (currently `1.0.0+1`, minus
+/// the build-number suffix). Shown in [BackupManifest.appVersion] for
+/// the user's own reference only — see [BackupLocalDataSource
+/// ._resolveAppVersion]'s doc comment for why this isn't read via a
+/// runtime plugin instead. Update this alongside pubspec.yaml when
+/// bumping the app version.
+const String _kAppVersionForBackupManifest = '1.0.0';
+
+/// Raw file-system and archive access for creating and applying
+/// `.bubimo` backup bundles. No error-wrapping here — exceptions
+/// propagate up to `BackupRepositoryImpl`, matching every other data
+/// source in this app (see [DiaryLocalDataSource]'s own doc comment).
+///
+/// # What's in a bundle
+/// A `.bubimo` file is a zip containing:
+///  - `manifest.json` — see [BackupManifest]
+///  - `data/diary_entries.json` — a JSON array, one object per
+///    non-deleted diary entry, written via [BackupDiaryEntryModel]
+///  - `media/...` — every file actually referenced by an exported
+///    entry's path fields, at the SAME relative path it has under
+///    [MediaStorageService.mediaRoot] on the exporting device (e.g.
+///    `media/diary_images/172845..._a3f.jpg`) — NOT every file in that
+///    directory indiscriminately, so deleted/orphaned media doesn't
+///    bloat the export.
+///
+/// # Why every path is rewritten
+/// An entry's `imagePath`/`overlayImages[].path`/etc. are, on the
+/// exporting device, absolute paths like
+/// `/data/user/0/com.x.bubimo/app_flutter/media/diary_images/xyz.jpg`.
+/// That exact string means nothing on a different device, or even on
+/// the same device after a fresh install — the app-private root
+/// changes. So on export, every path is rewritten to a bundle-relative
+/// form before being written into `data/diary_entries.json`; on import,
+/// every bundle-relative path is resolved back into a fresh absolute
+/// path on THIS install via [MediaStorageService.saveBytes], and only
+/// that fresh path is ever written to the database. See
+/// `media_storage_service.dart`'s doc comment for why a raw picker/
+/// gallery path was never safe to store in the first place — this is
+/// the same principle applied to backup/restore specifically.
+///
+/// # Why imports always create new entries
+/// Every entry in an imported bundle gets a freshly generated id via
+/// [IdGenerator.generate] — the id stored in the bundle itself is never
+/// reused. This guarantees importing a bundle can never overwrite or
+/// silently merge with anything already in the local database,
+/// regardless of whether the bundle came from this exact device, a
+/// different device, or an old backup of this same device from before
+/// data was later edited or deleted.
+class BackupLocalDataSource {
+  final DiaryLocalDataSource diaryLocalDataSource;
+  final MediaStorageService mediaStorageService;
+
+  const BackupLocalDataSource({
+    required this.diaryLocalDataSource,
+    required this.mediaStorageService,
+  });
+
+  // ── Export ────────────────────────────────────────────────────────
+
+  /// Creates a `.bubimo` bundle of every non-deleted diary entry and
+  /// saves it to disk. Returns the saved file's absolute path, the
+  /// number of entries included, the file's size in bytes, and whether
+  /// it landed in the public Downloads directory (vs. an app-private
+  /// fallback — see [_resolveExportDirectory]'s doc comment).
+  Future<ExportResult> createBackup() async {
+    final entries = await diaryLocalDataSource.getAllEntries();
+    final mediaRoot = await mediaStorageService.mediaRoot();
+
+    final archive = Archive();
+    // Tracks every relative media path already added to the archive,
+    // so a file referenced by multiple entries (unlikely today, but
+    // not impossible) is only read from disk and zipped once.
+    final addedMediaPaths = <String>{};
+
+    final entryJsonList = <Map<String, dynamic>>[];
+
+    for (final entry in entries) {
+      final rewritten = await _rewriteEntryPathsForExport(
+        entry: entry,
+        mediaRoot: mediaRoot,
+        archive: archive,
+        addedMediaPaths: addedMediaPaths,
+      );
+      entryJsonList.add(rewritten);
+    }
+
+    final manifest = BackupManifest(
+      formatVersion: kBackupFormatVersion,
+      exportedAt: DateTime.now(),
+      appVersion: await _resolveAppVersion(),
+      entryCount: entries.length,
+    );
+
+    archive.addFile(
+      ArchiveFile.string('manifest.json', jsonEncode(manifest.toJson())),
+    );
+    archive.addFile(
+      ArchiveFile.string(
+        'data/diary_entries.json',
+        jsonEncode(entryJsonList),
+      ),
+    );
+
+    final zipBytes = ZipEncoder().encode(archive);
+
+    final (directory, savedToPublicDownloads) =
+        await _resolveExportDirectory();
+    final fileName = _generateExportFileName();
+    final file = File(p.join(directory.path, fileName));
+    await file.writeAsBytes(zipBytes);
+
+    return ExportResult(
+      filePath: file.path,
+      entryCount: entries.length,
+      fileSizeBytes: zipBytes.length,
+      savedToPublicDownloads: savedToPublicDownloads,
+    );
+  }
+
+  /// Builds the export JSON for one entry, adding any media files it
+  /// references into [archive] (deduplicated via [addedMediaPaths]) and
+  /// rewriting its path fields to bundle-relative form in the returned
+  /// JSON map.
+  Future<Map<String, dynamic>> _rewriteEntryPathsForExport({
+    required DiaryEntry entry,
+    required Directory mediaRoot,
+    required Archive archive,
+    required Set<String> addedMediaPaths,
+  }) async {
+    Future<String?> rewriteAndBundle(String? absolutePath) async {
+      if (absolutePath == null || absolutePath.isEmpty) return null;
+
+      final file = File(absolutePath);
+      if (!await file.exists()) {
+        // The file this entry references is already gone from disk
+        // (shouldn't normally happen now that every picker routes
+        // through MediaStorageService, but a pre-existing entry from
+        // before that fix, or a manually-deleted file, could still hit
+        // this). Skip bundling it and drop the reference for this
+        // export rather than failing the whole export over one missing
+        // file.
+        return null;
+      }
+
+      // Relative path is computed against mediaRoot's PARENT, so the
+      // relative path retains its leading "media/" segment — this must
+      // exactly match the top-level folder name a fresh install's
+      // MediaStorageService.mediaRoot() resolves to, for import's
+      // resolution step to work.
+      final relativePath = p.relative(
+        absolutePath,
+        from: mediaRoot.parent.path,
+      );
+      final normalizedRelativePath = p.split(relativePath).join('/');
+
+      if (!addedMediaPaths.contains(normalizedRelativePath)) {
+        final bytes = await file.readAsBytes();
+        archive.addFile(
+          ArchiveFile(
+            normalizedRelativePath,
+            bytes.length,
+            bytes,
+          ),
+        );
+        addedMediaPaths.add(normalizedRelativePath);
+      }
+
+      return normalizedRelativePath;
+    }
+
+    final json = BackupDiaryEntryModel.toJson(entry);
+
+    json['imagePath'] = await rewriteAndBundle(entry.imagePath);
+    json['bgGalleryImagePath'] = await rewriteAndBundle(
+      entry.bgGalleryImagePath,
+    );
+    json['bgLocalPath'] = await rewriteAndBundle(entry.bgLocalPath);
+    // bgImagePath is a bundled app asset path, not app-owned media — no
+    // rewriting needed. See BackupDiaryEntryModel.fromJson's matching
+    // note on the import side for the full rationale/caveat.
+
+    final rewrittenImages = <String>[];
+    for (final imagePath in entry.images) {
+      final rewritten = await rewriteAndBundle(imagePath);
+      if (rewritten != null) rewrittenImages.add(rewritten);
+    }
+    json['images'] = rewrittenImages;
+
+    final rewrittenOverlayImages = <Map<String, dynamic>>[];
+    for (final overlayImage in entry.overlayImages) {
+      final rewritten = await rewriteAndBundle(overlayImage.path);
+      if (rewritten == null) continue; // source file gone — drop it
+      rewrittenOverlayImages.add({
+        ...overlayImage.toJson(),
+        'path': rewritten,
+      });
+    }
+    json['overlayImages'] = rewrittenOverlayImages;
+
+    final rewrittenStickers = <Map<String, dynamic>>[];
+    for (final sticker in entry.stickers) {
+      final rewrittenLocalPath = await rewriteAndBundle(sticker.localPath);
+      rewrittenStickers.add({
+        ...sticker.toJson(),
+        // Unlike overlay images, a sticker with no local file isn't
+        // dropped — it still has its recovery `url`, so the imported
+        // copy can simply re-download it (same as
+        // EditableStickerOverlay already falls back to a placeholder +
+        // DiaryFormBloc's existing recovery path for a missing
+        // localPath today).
+        'localPath': rewrittenLocalPath,
+      });
+    }
+    json['stickers'] = rewrittenStickers;
+
+    return json;
+  }
+
+  // ── Import ────────────────────────────────────────────────────────
+
+  /// Reads, validates, and applies the `.bubimo` bundle at [filePath].
+  ///
+  /// Throws [ImportExportException] if the manifest is missing,
+  /// unreadable, or declares a [BackupManifest.formatVersion] this app
+  /// build doesn't know how to read — this check happens BEFORE any
+  /// entry data is parsed or any database write occurs, so an
+  /// incompatible/corrupt file is rejected cleanly with no partial
+  /// state change.
+  Future<ImportResult> importBackup(String filePath) async {
+    final bytes = await File(filePath).readAsBytes();
+
+    final Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes);
+    } catch (e) {
+      throw ImportExportException(
+        message: 'This file isn\'t a valid backup archive: $e',
+      );
+    }
+
+    final manifestFile = archive.findFile('manifest.json');
+    if (manifestFile == null) {
+      throw const ImportExportException(
+        message: 'This file is missing its manifest and can\'t be read '
+            'as a backup.',
+      );
+    }
+
+    final BackupManifest manifest;
+    try {
+      final manifestJson = jsonDecode(
+        utf8.decode(manifestFile.content as List<int>),
+      );
+      manifest = BackupManifest.fromJson(manifestJson as Map<String, dynamic>);
+    } on FormatException catch (e) {
+      throw ImportExportException(
+        message: 'This backup\'s manifest is invalid: ${e.message}',
+      );
+    }
+
+    if (manifest.formatVersion > kBackupFormatVersion) {
+      throw ImportExportException(
+        message:
+            'This backup was created by a newer version of the app '
+            '(format version ${manifest.formatVersion}) and can\'t be '
+            'read by this version. Please update the app and try again.',
+      );
+    }
+
+    final entriesFile = archive.findFile('data/diary_entries.json');
+    if (entriesFile == null) {
+      throw const ImportExportException(
+        message: 'This backup is missing its diary entry data.',
+      );
+    }
+
+    final rawEntries = jsonDecode(
+      utf8.decode(entriesFile.content as List<int>),
+    );
+    if (rawEntries is! List) {
+      throw const ImportExportException(
+        message: 'This backup\'s diary entry data is malformed.',
+      );
+    }
+
+    var importedCount = 0;
+    var skippedCount = 0;
+
+    for (final rawEntry in rawEntries) {
+      if (rawEntry is! Map<String, dynamic>) {
+        skippedCount++;
+        continue;
+      }
+
+      try {
+        final resolvedPaths = await _resolveEntryMediaForImport(
+          rawEntry: rawEntry,
+          archive: archive,
+        );
+
+        final entry = BackupDiaryEntryModel.fromJson(
+          rawEntry,
+          newId: IdGenerator.generate(),
+          resolvedPaths: resolvedPaths,
+        );
+
+        await diaryLocalDataSource.insertEntry(
+          DiaryEntryModel.fromEntity(entry),
+        );
+        importedCount++;
+      } catch (_) {
+        // One malformed/unresolvable entry doesn't fail the whole
+        // import — same per-record fault isolation used throughout
+        // this codebase (see DiaryEntryModel's decode helpers).
+        skippedCount++;
+      }
+    }
+
+    return ImportResult(
+      importedCount: importedCount,
+      skippedCount: skippedCount,
+    );
+  }
+
+  /// For one raw entry record, finds every relative media path it
+  /// references, copies that file's bytes out of [archive] into this
+  /// device's real media directory via [MediaStorageService.saveBytes],
+  /// and returns a map from the original bundle-relative path to the
+  /// fresh absolute path it now lives at.
+  ///
+  /// Done as a separate pass BEFORE [BackupDiaryEntryModel.fromJson]
+  /// parses the entry, since resolving a path requires an async file
+  /// write that a synchronous JSON-parsing step shouldn't perform
+  /// itself — mirrors the same separation-of-concerns reasoning as
+  /// [DiaryEntryModel.fromMap] doing pure parsing while
+  /// [DiaryLocalDataSource] handles all I/O.
+  Future<Map<String, String>> _resolveEntryMediaForImport({
+    required Map<String, dynamic> rawEntry,
+    required Archive archive,
+  }) async {
+    final resolved = <String, String>{};
+
+    Future<void> resolveOne(String? bundlePath) async {
+      if (bundlePath == null || bundlePath.isEmpty) return;
+      if (resolved.containsKey(bundlePath)) return; // already resolved
+
+      final archiveFile = archive.findFile(bundlePath);
+      if (archiveFile == null) {
+        // Referenced but not actually present in the bundle (e.g. the
+        // source file was already missing at export time — see
+        // _rewriteEntryPathsForExport's matching check). Leave
+        // unresolved; BackupDiaryEntryModel.fromJson's resolvePath will
+        // throw for this one field, which is caught per-record.
+        return;
+      }
+
+      final category = _categoryFromBundlePath(bundlePath);
+      if (category == null) return;
+
+      final bytes = archiveFile.content as List<int>;
+      final extension = p.extension(bundlePath);
+      final savedPath = await mediaStorageService.saveBytes(
+        Uint8List.fromList(bytes),
+        category: category,
+        extension: extension,
+      );
+      resolved[bundlePath] = savedPath;
+    }
+
+    await resolveOne(rawEntry['imagePath'] as String?);
+    await resolveOne(rawEntry['bgGalleryImagePath'] as String?);
+    await resolveOne(rawEntry['bgLocalPath'] as String?);
+
+    final imagesRaw = rawEntry['images'];
+    if (imagesRaw is List) {
+      for (final item in imagesRaw) {
+        if (item is String) await resolveOne(item);
+      }
+    }
+
+    final overlayImagesRaw = rawEntry['overlayImages'];
+    if (overlayImagesRaw is List) {
+      for (final item in overlayImagesRaw) {
+        if (item is Map<String, dynamic>) {
+          await resolveOne(item['path'] as String?);
+        }
+      }
+    }
+
+    final stickersRaw = rawEntry['stickers'];
+    if (stickersRaw is List) {
+      for (final item in stickersRaw) {
+        if (item is Map<String, dynamic>) {
+          await resolveOne(item['localPath'] as String?);
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  /// Maps a bundle-relative media path (e.g.
+  /// `media/diary_images/xyz.jpg`) back to the [MediaCategory] it
+  /// belongs in, so it can be saved into the correct folder on this
+  /// device. Returns null for a path that doesn't match any known
+  /// category folder (e.g. a foreign/corrupted bundle).
+  MediaCategory? _categoryFromBundlePath(String bundlePath) {
+    final segments = p.split(bundlePath);
+    // Expected shape: media/<folderName>/<filename>, i.e. 3 segments.
+    if (segments.length < 3 || segments.first != 'media') return null;
+    final folderName = segments[1];
+
+    for (final category in MediaCategory.values) {
+      if (category.folderName == folderName) return category;
+    }
+    return null;
+  }
+
+  // ── Shared helpers ────────────────────────────────────────────────
+
+  Future<String> _resolveAppVersion() async {
+    // Deliberately NOT using a plugin (e.g. package_info_plus) to read
+    // this at runtime — appVersion is purely informational (see
+    // BackupManifest's doc comment: it's shown to the user for their
+    // own reference and never used for any compatibility decision), so
+    // pulling in an entire additional native-platform-channel
+    // dependency just to populate a display string isn't worth it.
+    // Update this constant alongside pubspec.yaml's own `version:`
+    // field when bumping the app version.
+    return _kAppVersionForBackupManifest;
+  }
+
+  String _generateExportFileName() {
+    final now = DateTime.now();
+    final datePart =
+        '${now.year}${_twoDigits(now.month)}${_twoDigits(now.day)}'
+        '_${_twoDigits(now.hour)}${_twoDigits(now.minute)}';
+    return 'bubimo_backup_$datePart$kBackupFileExtension';
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+  /// Resolves where the exported file should be saved, and whether that
+  /// location is the public, user-visible Downloads directory.
+  ///
+  /// Tries `getDownloadsDirectory()` first — Android support for this
+  /// was only added in `path_provider_android` 2.2.0+ (this project
+  /// currently resolves 2.3.1, confirmed via `flutter pub deps`, so the
+  /// primary path is expected to succeed). Falls back to a clearly
+  /// named subfolder under the app's own documents directory if
+  /// unavailable for any reason (an older resolved version on a
+  /// different machine/CI, or any other platform-reported failure) —
+  /// this keeps the feature working either way, at the cost of the
+  /// fallback file only being reachable from within the app itself
+  /// rather than the device's regular Files app. The returned bool
+  /// tells the presentation layer which case happened, so the
+  /// confirmation message shown to the user stays accurate either way.
+  Future<(Directory, bool)> _resolveExportDirectory() async {
+    try {
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir != null) {
+        return (downloadsDir, true);
+      }
+    } catch (_) {
+      // Falls through to the app-private fallback below.
+    }
+
+    final appDocsDir = await getApplicationDocumentsDirectory();
+    final fallbackDir = Directory(p.join(appDocsDir.path, 'exported_backups'));
+    if (!await fallbackDir.exists()) {
+      await fallbackDir.create(recursive: true);
+    }
+    return (fallbackDir, false);
+  }
+}

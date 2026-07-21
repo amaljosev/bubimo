@@ -2,21 +2,39 @@
 
 import 'dart:io';
 
+import 'package:bubimo/core/error/exceptions.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Reusable optional image field with a pick -> crop flow.
+import '../../../../core/di/injection.dart';
+import '../../../../core/storage/media_storage_service.dart';
+
+/// Reusable optional image field with a pick -> crop -> save flow.
 ///
 /// Picking flow: gallery (`image_picker`) -> crop to [aspectWidth]:
-/// [aspectHeight] (`image_cropper`) -> the resulting cropped file path is
-/// reported via [onImagePicked]. Only the final cropped path is ever
-/// stored — the picker's raw/uncropped path is discarded.
+/// [aspectHeight] (`image_cropper`) -> the cropped file is copied into
+/// this app's own media directory via [MediaStorageService] (registered
+/// in `injection.dart`) -> that durable path is reported via
+/// [onImagePicked].
 ///
-/// Used for both the custom theme header image (3600:1200, rounded rect)
-/// and the profile avatar/header image (1:1 circular for avatar, 3600:1200
+/// Neither the picker's raw/uncropped path NOR the cropper's own output
+/// path is ever stored — both live in locations this app doesn't own
+/// (OS temp dirs / gallery cache) and aren't guaranteed to survive past
+/// this session, let alone a backup/restore onto a different device.
+/// Only the path [MediaStorageService.saveFile] returns is durable and
+/// safe to persist. See `media_storage_service.dart`'s doc comment for
+/// the full rationale.
+///
+/// [category] tells [MediaStorageService] which media folder this
+/// particular use of the field belongs to (e.g. profile avatar vs.
+/// theme header) — required so every caller makes a deliberate choice
+/// rather than everything landing in one undifferentiated folder.
+///
+/// Used for the custom theme header image (3600:1200, rounded rect) and
+/// the profile avatar/header image (1:1 circular for avatar, 3600:1200
 /// rounded rect for profile header).
-class CroppingImagePickerField extends StatelessWidget {
+class CroppingImagePickerField extends StatefulWidget {
   final String? imagePath;
   final ValueChanged<String> onImagePicked;
   final VoidCallback onImageRemoved;
@@ -24,6 +42,10 @@ class CroppingImagePickerField extends StatelessWidget {
   /// Aspect ratio numerator/denominator passed to the cropper.
   final double aspectWidth;
   final double aspectHeight;
+
+  /// Which app-owned media folder the saved file belongs in — see
+  /// [MediaCategory].
+  final MediaCategory category;
 
   /// Label shown above the picker. Pass null to omit (e.g. when the
   /// caller renders its own label/subtitle alongside a compact tile).
@@ -47,45 +69,82 @@ class CroppingImagePickerField extends StatelessWidget {
     required this.onImageRemoved,
     required this.aspectWidth,
     required this.aspectHeight,
+    required this.category,
     this.label,
     this.cropToolbarTitle = 'Crop Image',
     this.circular = false,
     this.circularSize = 100,
   });
 
+  @override
+  State<CroppingImagePickerField> createState() =>
+      _CroppingImagePickerFieldState();
+}
+
+class _CroppingImagePickerFieldState extends State<CroppingImagePickerField> {
+  final MediaStorageService _mediaStorageService = getIt<MediaStorageService>();
+
+  // Guards against rapid repeated taps opening the gallery
+  // picker/cropper multiple times concurrently.
+  bool _isPicking = false;
+
   Future<void> _pickAndCrop(BuildContext context) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return; // User cancelled the gallery picker.
+    if (_isPicking) return;
+    _isPicking = true;
 
-    final cropped = await ImageCropper().cropImage(
-      sourcePath: picked.path,
-      aspectRatio: CropAspectRatio(
-        ratioX: aspectWidth,
-        ratioY: aspectHeight,
-      ),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: cropToolbarTitle,
-          lockAspectRatio: true,
-          hideBottomControls: false,
-          cropStyle: circular ? CropStyle.circle : CropStyle.rectangle,
-        ),
-        IOSUiSettings(
-          title: cropToolbarTitle,
-          aspectRatioLockEnabled: true,
-          cropStyle: circular ? CropStyle.circle : CropStyle.rectangle,
-        ),
-      ],
-    );
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return; // User cancelled the gallery picker.
 
-    if (cropped != null) onImagePicked(cropped.path);
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: picked.path,
+        aspectRatio: CropAspectRatio(
+          ratioX: widget.aspectWidth,
+          ratioY: widget.aspectHeight,
+        ),
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: widget.cropToolbarTitle,
+            lockAspectRatio: true,
+            hideBottomControls: false,
+            cropStyle: widget.circular ? CropStyle.circle : CropStyle.rectangle,
+          ),
+          IOSUiSettings(
+            title: widget.cropToolbarTitle,
+            aspectRatioLockEnabled: true,
+            cropStyle: widget.circular ? CropStyle.circle : CropStyle.rectangle,
+          ),
+        ],
+      );
+
+      if (cropped == null) return; // User cancelled the crop step.
+
+      // Copy the cropper's output into app-owned storage before
+      // reporting it — the cropped file itself is still a temp file at
+      // this point, with the exact same lifetime problem as the
+      // pre-crop picker path.
+      final savedPath = await _mediaStorageService.saveFile(
+        File(cropped.path),
+        category: widget.category,
+      );
+      widget.onImagePicked(savedPath);
+    } on MediaStorageException catch (e) {
+      if (mounted) {
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save image: ${e.message}')),
+        );
+      }
+    } finally {
+      _isPicking = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final borderRadius = circular
+    final borderRadius = widget.circular
         ? BorderRadius.circular(999)
         : BorderRadius.circular(16);
 
@@ -95,16 +154,16 @@ class CroppingImagePickerField extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
           borderRadius: borderRadius,
-          image: imagePath != null
+          image: widget.imagePath != null
               ? DecorationImage(
-                  image: FileImage(File(imagePath!)),
+                  image: FileImage(File(widget.imagePath!)),
                   fit: BoxFit.cover,
                 )
               : null,
         ),
-        child: imagePath == null
+        child: widget.imagePath == null
             ? Center(
-                child: circular
+                child: widget.circular
                     ? Icon(
                         Icons.add_photo_alternate_outlined,
                         size: 28,
@@ -134,31 +193,31 @@ class CroppingImagePickerField extends StatelessWidget {
 
     final stack = Stack(
       children: [
-        circular
+        widget.circular
             ? SizedBox(
-                width: circularSize,
-                height: circularSize,
+                width: widget.circularSize,
+                height: widget.circularSize,
                 child: preview,
               )
             : AspectRatio(
-                aspectRatio: aspectWidth / aspectHeight,
+                aspectRatio: widget.aspectWidth / widget.aspectHeight,
                 child: preview,
               ),
-        if (imagePath != null)
+        if (widget.imagePath != null)
           Positioned(
-            top: circular ? -4 : 8,
-            right: circular ? -4 : 8,
-            child: _RemoveButton(onPressed: onImageRemoved),
+            top: widget.circular ? -4 : 8,
+            right: widget.circular ? -4 : 8,
+            child: _RemoveButton(onPressed: widget.onImageRemoved),
           ),
       ],
     );
 
-    if (label == null) return stack;
+    if (widget.label == null) return stack;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label!, style: theme.textTheme.labelLarge),
+        Text(widget.label!, style: theme.textTheme.labelLarge),
         const SizedBox(height: 8),
         stack,
       ],
