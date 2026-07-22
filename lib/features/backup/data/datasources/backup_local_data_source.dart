@@ -7,10 +7,10 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/storage/media_storage_service.dart';
+import '../../../../core/utils/downloads_directory_resolver.dart';
 import '../../../../core/utils/id_generator.dart';
 import '../../../diary_entry/data/datasources/diary_local_data_source.dart';
 import '../../../diary_entry/data/models/diary_entry_model.dart';
@@ -51,11 +51,10 @@ const String _kAppVersionForBackupManifest = '1.0.0';
 ///  - `data/diary_entries.json` — a JSON array, one object per
 ///    non-deleted diary entry, written via [BackupDiaryEntryModel]
 ///  - `media/...` — every file actually referenced by an exported
-///    entry's path fields, at the SAME relative path it has under
-///    [MediaStorageService.mediaRoot] on the exporting device (e.g.
-///    `media/diary_images/172845..._a3f.jpg`) — NOT every file in that
-///    directory indiscriminately, so deleted/orphaned media doesn't
-///    bloat the export.
+///    entry's path fields, saved under its known category folder (e.g.
+///    `media/diary_images/0_xyz.jpg`) regardless of where the file
+///    physically lives on the exporting device — see
+///    [_rewriteEntryPathsForExport]'s doc comment for why this matters.
 ///
 /// # Why every path is rewritten
 /// An entry's `imagePath`/`overlayImages[].path`/etc. are, on the
@@ -95,25 +94,27 @@ class BackupLocalDataSource {
   /// saves it to disk. Returns the saved file's absolute path, the
   /// number of entries included, the file's size in bytes, and whether
   /// it landed in the public Downloads directory (vs. an app-private
-  /// fallback — see [_resolveExportDirectory]'s doc comment).
+  /// fallback — see [resolveDownloadsDirectory]'s doc comment).
   Future<ExportResult> createBackup() async {
     final entries = await diaryLocalDataSource.getAllEntries();
-    final mediaRoot = await mediaStorageService.mediaRoot();
 
     final archive = Archive();
-    // Tracks every relative media path already added to the archive,
-    // so a file referenced by multiple entries (unlikely today, but
-    // not impossible) is only read from disk and zipped once.
-    final addedMediaPaths = <String>{};
+    // Dedupes by SOURCE absolute path (not by where it lives on disk) —
+    // if the same file is referenced twice, it's only read and zipped
+    // once. Also tracks a per-category counter so every bundled file
+    // gets a unique, collision-free name inside its category folder,
+    // regardless of what its original filename was.
+    final pathToBundlePath = <String, String>{};
+    final categoryCounters = <MediaCategory, int>{};
 
     final entryJsonList = <Map<String, dynamic>>[];
 
     for (final entry in entries) {
       final rewritten = await _rewriteEntryPathsForExport(
         entry: entry,
-        mediaRoot: mediaRoot,
         archive: archive,
-        addedMediaPaths: addedMediaPaths,
+        pathToBundlePath: pathToBundlePath,
+        categoryCounters: categoryCounters,
       );
       entryJsonList.add(rewritten);
     }
@@ -138,7 +139,7 @@ class BackupLocalDataSource {
     final zipBytes = ZipEncoder().encode(archive);
 
     final (directory, savedToPublicDownloads) =
-        await _resolveExportDirectory();
+        await resolveDownloadsDirectory();
     final fileName = _generateExportFileName();
     final file = File(p.join(directory.path, fileName));
     await file.writeAsBytes(zipBytes);
@@ -152,77 +153,96 @@ class BackupLocalDataSource {
   }
 
   /// Builds the export JSON for one entry, adding any media files it
-  /// references into [archive] (deduplicated via [addedMediaPaths]) and
-  /// rewriting its path fields to bundle-relative form in the returned
-  /// JSON map.
+  /// references into [archive] and rewriting its path fields to
+  /// bundle-relative form in the returned JSON map.
+  ///
+  /// Each field's [MediaCategory] is known explicitly (not derived from
+  /// where the file happens to sit on disk) — this is what makes export
+  /// correct for a file that predates this app's [MediaStorageService]
+  /// fix (e.g. an old gallery-picked overlay photo or background whose
+  /// path lives outside `MediaStorageService.mediaRoot`, such as an
+  /// OS/gallery cache path from before every picker routed through
+  /// `MediaStorageService`). The previous implementation computed each
+  /// file's bundle path as its path *relative to `mediaRoot`* — for any
+  /// file NOT actually under that root, that produced a path containing
+  /// `..` segments, which import's category-folder lookup
+  /// ([_categoryFromBundlePath]) couldn't recognize, silently dropping
+  /// that one image/sticker on restore. Bundling strictly by the field's
+  /// known category instead means export/import work correctly
+  /// regardless of where the source file physically lives, as long as
+  /// it still exists on disk at all.
   Future<Map<String, dynamic>> _rewriteEntryPathsForExport({
     required DiaryEntry entry,
-    required Directory mediaRoot,
     required Archive archive,
-    required Set<String> addedMediaPaths,
+    required Map<String, String> pathToBundlePath,
+    required Map<MediaCategory, int> categoryCounters,
   }) async {
-    Future<String?> rewriteAndBundle(String? absolutePath) async {
+    Future<String?> rewriteAndBundle(
+      String? absolutePath,
+      MediaCategory category,
+    ) async {
       if (absolutePath == null || absolutePath.isEmpty) return null;
+
+      final cached = pathToBundlePath[absolutePath];
+      if (cached != null) return cached;
 
       final file = File(absolutePath);
       if (!await file.exists()) {
-        // The file this entry references is already gone from disk
-        // (shouldn't normally happen now that every picker routes
-        // through MediaStorageService, but a pre-existing entry from
-        // before that fix, or a manually-deleted file, could still hit
-        // this). Skip bundling it and drop the reference for this
+        // The file this entry references is genuinely gone from disk
+        // (deleted outside the app, or lost some other way) — nothing
+        // to recover. Skip bundling it and drop the reference for this
         // export rather than failing the whole export over one missing
         // file.
         return null;
       }
 
-      // Relative path is computed against mediaRoot's PARENT, so the
-      // relative path retains its leading "media/" segment — this must
-      // exactly match the top-level folder name a fresh install's
-      // MediaStorageService.mediaRoot() resolves to, for import's
-      // resolution step to work.
-      final relativePath = p.relative(
-        absolutePath,
-        from: mediaRoot.parent.path,
-      );
-      final normalizedRelativePath = p.split(relativePath).join('/');
+      final index = categoryCounters[category] ?? 0;
+      categoryCounters[category] = index + 1;
+      final extension = p.extension(absolutePath);
+      final baseName = p.basenameWithoutExtension(absolutePath);
+      final bundlePath = 'media/${category.folderName}/${index}_$baseName$extension';
 
-      if (!addedMediaPaths.contains(normalizedRelativePath)) {
-        final bytes = await file.readAsBytes();
-        archive.addFile(
-          ArchiveFile(
-            normalizedRelativePath,
-            bytes.length,
-            bytes,
-          ),
-        );
-        addedMediaPaths.add(normalizedRelativePath);
-      }
+      final bytes = await file.readAsBytes();
+      archive.addFile(ArchiveFile(bundlePath, bytes.length, bytes));
+      pathToBundlePath[absolutePath] = bundlePath;
 
-      return normalizedRelativePath;
+      return bundlePath;
     }
 
     final json = BackupDiaryEntryModel.toJson(entry);
 
-    json['imagePath'] = await rewriteAndBundle(entry.imagePath);
+    json['imagePath'] = await rewriteAndBundle(
+      entry.imagePath,
+      MediaCategory.diaryImages,
+    );
     json['bgGalleryImagePath'] = await rewriteAndBundle(
       entry.bgGalleryImagePath,
+      MediaCategory.diaryBackgrounds,
     );
-    json['bgLocalPath'] = await rewriteAndBundle(entry.bgLocalPath);
+    json['bgLocalPath'] = await rewriteAndBundle(
+      entry.bgLocalPath,
+      MediaCategory.downloadedBackgrounds,
+    );
     // bgImagePath is a bundled app asset path, not app-owned media — no
     // rewriting needed. See BackupDiaryEntryModel.fromJson's matching
     // note on the import side for the full rationale/caveat.
 
     final rewrittenImages = <String>[];
     for (final imagePath in entry.images) {
-      final rewritten = await rewriteAndBundle(imagePath);
+      final rewritten = await rewriteAndBundle(
+        imagePath,
+        MediaCategory.diaryImages,
+      );
       if (rewritten != null) rewrittenImages.add(rewritten);
     }
     json['images'] = rewrittenImages;
 
     final rewrittenOverlayImages = <Map<String, dynamic>>[];
     for (final overlayImage in entry.overlayImages) {
-      final rewritten = await rewriteAndBundle(overlayImage.path);
+      final rewritten = await rewriteAndBundle(
+        overlayImage.path,
+        MediaCategory.diaryImages,
+      );
       if (rewritten == null) continue; // source file gone — drop it
       rewrittenOverlayImages.add({
         ...overlayImage.toJson(),
@@ -233,11 +253,15 @@ class BackupLocalDataSource {
 
     final rewrittenStickers = <Map<String, dynamic>>[];
     for (final sticker in entry.stickers) {
-      final rewrittenLocalPath = await rewriteAndBundle(sticker.localPath);
+      final rewrittenLocalPath = await rewriteAndBundle(
+        sticker.localPath,
+        MediaCategory.stickers,
+      );
       rewrittenStickers.add({
         ...sticker.toJson(),
         // Unlike overlay images, a sticker with no local file isn't
         // dropped — it still has its recovery `url`, so the imported
+
         // copy can simply re-download it (same as
         // EditableStickerOverlay already falls back to a placeholder +
         // DiaryFormBloc's existing recovery path for a missing
@@ -473,37 +497,4 @@ class BackupLocalDataSource {
   }
 
   String _twoDigits(int value) => value.toString().padLeft(2, '0');
-
-  /// Resolves where the exported file should be saved, and whether that
-  /// location is the public, user-visible Downloads directory.
-  ///
-  /// Tries `getDownloadsDirectory()` first — Android support for this
-  /// was only added in `path_provider_android` 2.2.0+ (this project
-  /// currently resolves 2.3.1, confirmed via `flutter pub deps`, so the
-  /// primary path is expected to succeed). Falls back to a clearly
-  /// named subfolder under the app's own documents directory if
-  /// unavailable for any reason (an older resolved version on a
-  /// different machine/CI, or any other platform-reported failure) —
-  /// this keeps the feature working either way, at the cost of the
-  /// fallback file only being reachable from within the app itself
-  /// rather than the device's regular Files app. The returned bool
-  /// tells the presentation layer which case happened, so the
-  /// confirmation message shown to the user stays accurate either way.
-  Future<(Directory, bool)> _resolveExportDirectory() async {
-    try {
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir != null) {
-        return (downloadsDir, true);
-      }
-    } catch (_) {
-      // Falls through to the app-private fallback below.
-    }
-
-    final appDocsDir = await getApplicationDocumentsDirectory();
-    final fallbackDir = Directory(p.join(appDocsDir.path, 'exported_backups'));
-    if (!await fallbackDir.exists()) {
-      await fallbackDir.create(recursive: true);
-    }
-    return (fallbackDir, false);
-  }
 }

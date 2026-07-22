@@ -24,9 +24,13 @@ import '../../features/diary_entry/presentation/bloc/diary_form/diary_form_bloc.
 
 // backup (Import & Export)
 import '../../features/backup/data/datasources/backup_local_data_source.dart';
+import '../../features/backup/data/datasources/pdf_export_data_source.dart';
 import '../../features/backup/data/repositories/backup_repository_impl.dart';
+import '../../features/backup/data/repositories/pdf_export_repository_impl.dart';
 import '../../features/backup/domain/repositories/backup_repository.dart';
+import '../../features/backup/domain/repositories/pdf_export_repository.dart';
 import '../../features/backup/domain/usecases/export_diary_backup.dart';
+import '../../features/backup/domain/usecases/export_diary_pdf.dart';
 import '../../features/backup/domain/usecases/import_diary_backup.dart';
 
 // diary_entry (stickers)
@@ -155,6 +159,21 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton(
     () => ImportDiaryBackup(getIt<BackupRepository>()),
   );
+  // "Download as PDF" — a separate, one-way, human-readable export.
+  // Depends only on DiaryLocalDataSource, not on BackupLocalDataSource/
+  // BackupRepository, since it doesn't read or write `.bubimo` bundles
+  // at all — see PdfExportRepository's doc comment for why this is a
+  // distinct repository rather than a third method bolted onto
+  // BackupRepository.
+  getIt.registerLazySingleton<PdfExportDataSource>(
+    () => PdfExportDataSource(getIt<DiaryLocalDataSource>()),
+  );
+  getIt.registerLazySingleton<PdfExportRepository>(
+    () => PdfExportRepositoryImpl(getIt<PdfExportDataSource>()),
+  );
+  getIt.registerLazySingleton(
+    () => ExportDiaryPdf(getIt<PdfExportRepository>()),
+  );
   // Factory, not singleton — same reasoning as DiaryFormBloc just
   // above: a fresh instance per visit to the page, not one shared
   // instance whose stale exportResult/importResult could leak into a
@@ -163,6 +182,7 @@ Future<void> configureDependencies() async {
     () => BackupBloc(
       exportDiaryBackup: getIt<ExportDiaryBackup>(),
       importDiaryBackup: getIt<ImportDiaryBackup>(),
+      exportDiaryPdf: getIt<ExportDiaryPdf>(),
     ),
   );
 

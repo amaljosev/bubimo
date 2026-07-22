@@ -5,7 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/entities/export_result.dart';
 import '../../domain/entities/import_result.dart';
+import '../../domain/entities/pdf_export_result.dart';
 import '../../domain/usecases/export_diary_backup.dart';
+import '../../domain/usecases/export_diary_pdf.dart';
 import '../../domain/usecases/import_diary_backup.dart';
 
 part 'backup_event.dart';
@@ -13,22 +15,26 @@ part 'backup_state.dart';
 
 /// Drives the combined Import & Export screen.
 ///
-/// Deliberately one bloc for both operations rather than two separate
-/// blocs — export and import share the exact same
-/// idle/running/success/failure state shape, and the screen presents
-/// them as two actions on one page (not two separate routes), so
-/// splitting them would mean two blocs independently reinventing
-/// identical status-tracking for no separation-of-concerns benefit.
+/// Deliberately one bloc for both `.bubimo` backup/restore AND PDF
+/// export rather than separate blocs per operation — all three share
+/// the exact same idle/running/success/failure state shape, and the
+/// screen presents them as actions on one page (not separate routes),
+/// so splitting them would mean multiple blocs independently
+/// reinventing identical status-tracking for no separation-of-concerns
+/// benefit.
 class BackupBloc extends Bloc<BackupEvent, BackupState> {
   final ExportDiaryBackup exportDiaryBackup;
   final ImportDiaryBackup importDiaryBackup;
+  final ExportDiaryPdf exportDiaryPdf;
 
   BackupBloc({
     required this.exportDiaryBackup,
     required this.importDiaryBackup,
+    required this.exportDiaryPdf,
   }) : super(const BackupState()) {
     on<BackupExportRequested>(_onExportRequested);
     on<BackupImportRequested>(_onImportRequested);
+    on<PdfExportRequested>(_onPdfExportRequested);
     on<BackupResultAcknowledged>(_onResultAcknowledged);
   }
 
@@ -91,5 +97,31 @@ class BackupBloc extends Bloc<BackupEvent, BackupState> {
     Emitter<BackupState> emit,
   ) {
     emit(state.cleared(status: BackupStatus.idle));
+  }
+
+  Future<void> _onPdfExportRequested(
+    PdfExportRequested event,
+    Emitter<BackupState> emit,
+  ) async {
+    if (state.isBusy) return;
+
+    emit(state.cleared(status: BackupStatus.exportingPdf));
+
+    final result = await exportDiaryPdf();
+
+    result.match(
+      (failure) => emit(
+        state.copyWith(
+          status: BackupStatus.failure,
+          errorMessage: failure.message,
+        ),
+      ),
+      (pdfExportResult) => emit(
+        state.copyWith(
+          status: BackupStatus.pdfExportSuccess,
+          pdfExportResult: pdfExportResult,
+        ),
+      ),
+    );
   }
 }

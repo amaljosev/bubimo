@@ -27,6 +27,17 @@ final class BackupImportRequested extends BackupEvent {
   List<Object?> get props => [filePath];
 }
 
+/// Fired when the user taps "Download as PDF". Runs [ExportDiaryPdf]
+/// end-to-end and reports the result via [BackupState.pdfExportResult].
+/// Deliberately a separate event/status from [BackupExportRequested]
+/// rather than a parameter on it — a `.bubimo` backup and a PDF export
+/// are different operations with different outputs, even though they
+/// share this bloc for state-shape reasons (see [BackupBloc]'s doc
+/// comment).
+final class PdfExportRequested extends BackupEvent {
+  const PdfExportRequested();
+}
+
 /// Fired by the presentation layer once it has fully consumed
 /// [BackupState.exportResult]/[BackupState.importResult]/
 /// [BackupState.errorMessage] (e.g. shown its confirmation dialog),
