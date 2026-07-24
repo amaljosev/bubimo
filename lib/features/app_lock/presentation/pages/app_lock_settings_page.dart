@@ -8,8 +8,7 @@ import '../../domain/entities/lock_type.dart';
 import '../bloc/lock_bloc.dart';
 import '../routing/app_lock_route_paths.dart';
 import '../widgets/lock_palette.dart';
-import 'pin_lock_screen.dart';
-import 'security_question_page.dart';
+
 
 class _LockOptionData {
   const _LockOptionData({

@@ -80,6 +80,7 @@ class SettingsPage extends StatelessWidget {
                 SettingsListItem(
                   icon: Icons.help_outline_rounded,
                   label: 'Help',
+                  onTap: () => context.push(AppRoutes.help),
                 ),
                 SettingsListItem(
                   icon: Icons.privacy_tip_outlined,

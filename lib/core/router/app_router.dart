@@ -2,6 +2,9 @@
 
 import 'package:bubimo/core/di/injection.dart';
 import 'package:bubimo/core/navigation/main_shell.dart';
+import 'package:bubimo/features/help/domain/faq_item.dart';
+import 'package:bubimo/features/help/presentation/pages/faq_detail_screen.dart';
+import 'package:bubimo/features/help/presentation/pages/help_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/app_lock/presentation/bloc/lock_bloc.dart';
@@ -25,7 +28,6 @@ import '../../../features/settings/presentation/pages/settings_page.dart';
 import '../../../features/theme/domain/entities/app_theme_data.dart';
 import '../../../features/theme/presentation/pages/custom_theme_screen.dart';
 
-
 /// Centralized route path constants. Use these instead of raw strings
 /// when navigating, to avoid typos and make renames a one-line change.
 /// The app-lock constants below are re-exports of AppLockRoutePaths
@@ -46,6 +48,8 @@ class AppRoutes {
   static const String favorites = '/favorites';
   static const String importExport = '/import-export';
   static const String cloudBackup = '/cloud-backup';
+  static const String help = '/help';
+  static const String helpDetail = '/help/detail';
   static const String appLockSettings = AppLockRoutePaths.settings;
   static const String appLockPinCreate = AppLockRoutePaths.pinCreate;
   static const String appLockSecurityQuestionSetup =
@@ -55,6 +59,7 @@ class AppRoutes {
   static const String lockSecurityQuestionVerify =
       AppLockRoutePaths.securityQuestionVerify;
 }
+
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.home,
   // Gates EVERY route below with the app-lock feature, without
@@ -76,7 +81,7 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.home,
       builder: (context, state) => const MainShell(),
     ),
-    
+
     GoRoute(
       path: AppRoutes.diaryForm,
       builder: (context, state) {
@@ -195,10 +200,8 @@ final GoRouter appRouter = GoRouter(
       // locked. LockGate itself picks biometric / PIN-verify /
       // security-question-verify based on LockBloc.state.lockType and
       // `context.go('/')`s on success.
-      builder: (context, state) => BlocProvider.value(
-        value: getIt<LockBloc>(),
-        child: const LockGate(),
-      ),
+      builder: (context, state) =>
+          BlocProvider.value(value: getIt<LockBloc>(), child: const LockGate()),
     ),
     GoRoute(
       path: AppRoutes.lockPinVerify,
@@ -221,5 +224,16 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
 
+    GoRoute(
+      path: AppRoutes.help,
+      builder: (context, state) => const HelpScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.helpDetail,
+      builder: (context, state) {
+        final item = state.extra as FaqItem;
+        return FaqDetailScreen(item: item);
+      },
+    ),
   ],
 );

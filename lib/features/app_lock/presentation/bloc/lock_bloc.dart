@@ -2,7 +2,6 @@
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../domain/entities/lock_failure.dart';
 import '../../domain/entities/lock_type.dart';
 import '../../domain/usecases/authenticate_with_biometrics.dart';
 import '../../domain/usecases/check_biometric_availability.dart';
