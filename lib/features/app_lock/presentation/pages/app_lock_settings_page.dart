@@ -145,10 +145,27 @@ class _AppLockSettingsPageState extends State<AppLockSettingsPage> {
     );
 
     final succeeded = bloc.state.verificationStatus == VerificationStatus.success;
+
+    // DIAGNOSTIC FIX: previously this always showed a hardcoded generic
+    // string ("Biometric not supported on this device or authentication
+    // failed.") no matter what actually went wrong — which meant a
+    // missing FlutterFragmentActivity, a missing manifest permission, no
+    // enrolled biometric, and a genuine user cancel all looked
+    // IDENTICAL from the UI. Surfacing the real
+    // AppLockState.verificationError (the message BiometricAuthFailure/
+    // BiometricUnavailableFailure actually carries — see
+    // app_lock_repository_impl.dart's authenticateWithBiometrics, which
+    // wraps whatever local_auth's authenticate() throws) tells you the
+    // real underlying exception instead of guessing blind.
+    final rawError = bloc.state.verificationError;
     bloc.add(const ResetVerification());
 
     if (!succeeded && mounted) {
-      _showSnackBar('Biometric not supported on this device or authentication failed.');
+      _showSnackBar(
+        rawError == null || rawError.isEmpty
+            ? 'Biometric authentication failed (no error detail returned).'
+            : 'Biometric error: $rawError',
+      );
     }
     return succeeded;
   }
@@ -325,7 +342,7 @@ class _LockOptionTile extends StatelessWidget {
 
 /// The "also allow biometric" row — shown only when the primary lock
 /// type is PIN or Security Question (see showsBiometricToggle above).
-/// A switch, not a pushable tile: there's nothing to navigate to, it's
+/// A switch, not a push able tile: there's nothing to navigate to, it's
 /// a direct on/off setting.
 class _BiometricShortcutToggle extends StatelessWidget {
   const _BiometricShortcutToggle({required this.enabled, required this.onChanged});
@@ -375,7 +392,6 @@ class _BiometricShortcutToggle extends StatelessWidget {
           Switch(
             value: enabled,
             onChanged: onChanged,
-            activeColor: _accent,
           ),
         ],
       ),

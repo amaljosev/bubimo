@@ -16,21 +16,14 @@ part 'lock_state.dart';
 
 class LockBloc extends Bloc<LockEvent, AppLockState> {
   LockBloc({
-    required GetLockConfig getLockConfig,
-    required usecase.SetLockType setLockType,
-    required SetBiometricEnabled setBiometricEnabled,
-    required CheckBiometricAvailability checkBiometricAvailability,
-    required AuthenticateWithBiometrics authenticateWithBiometrics,
-    required VerifyPin verifyPin,
-    required VerifySecurityAnswer verifySecurityAnswer,
-  }) : _getLockConfig = getLockConfig,
-       _setLockType = setLockType,
-       _setBiometricEnabled = setBiometricEnabled,
-       _checkBiometricAvailability = checkBiometricAvailability,
-       _authenticateWithBiometrics = authenticateWithBiometrics,
-       _verifyPin = verifyPin,
-       _verifySecurityAnswer = verifySecurityAnswer,
-       super(AppLockState.initial()) {
+    required this._getLockConfig,
+    required this._setLockType,
+    required this._setBiometricEnabled,
+    required this._checkBiometricAvailability,
+    required this._authenticateWithBiometrics,
+    required this._verifyPin,
+    required this._verifySecurityAnswer,
+  }) : super(AppLockState.initial()) {
     on<LoadLockConfig>(_onLoadLockConfig);
     on<SetLockType>(_onSetLockType);
     on<ToggleBiometric>(_onToggleBiometric);
@@ -104,7 +97,9 @@ class LockBloc extends Bloc<LockEvent, AppLockState> {
             // configured would flip isLocked true and lock the user
             // out of their own already-unlocked session on the very
             // next navigation.
-            isLocked: event.isColdStart ? config.lockType != LockType.none : state.isLocked,
+            isLocked: event.isColdStart
+                ? config.lockType != LockType.none
+                : state.isLocked,
           ),
         );
       },
@@ -141,7 +136,7 @@ class LockBloc extends Bloc<LockEvent, AppLockState> {
             // user is already inside an unlocked session when they
             // reach this settings screen, and setting a new lock type
             // should take effect for the NEXT time the app is opened
-            // or resumed — not relock them out of the flow they're
+            // or resumed — not re lock them out of the flow they're
             // actively completing right now.
             isLocked: event.type == LockType.none ? false : state.isLocked,
           ),

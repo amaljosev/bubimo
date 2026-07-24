@@ -1,7 +1,6 @@
 // lib/features/app_lock/data/repositories/app_lock_repository_impl.dart
 
 import 'dart:convert';
-
 import 'package:crypto/crypto.dart';
 import 'package:fpdart/fpdart.dart';
 import '../../domain/entities/lock_config.dart';

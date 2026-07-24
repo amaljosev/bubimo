@@ -11,7 +11,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/di/injection.dart';
 import 'features/app_lock/presentation/bloc/lock_bloc.dart';
-import 'features/reminders/data/datasources/local_notification_service.dart';
 import 'features/theme/presentation/cubit/app_theme_cubit.dart';
 
 Future<void> main() async {
@@ -49,7 +48,7 @@ Future<void> main() async {
 
   // Initialize local notifications (channel setup, timezone data,
   // permission request) before any reminder can be scheduled.
-  await getIt<LocalNotificationService>().initialize();
+  //await getIt<LocalNotificationService>().initialize();
 
   runApp(const DiaryApp());
 }

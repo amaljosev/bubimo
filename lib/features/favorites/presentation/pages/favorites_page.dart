@@ -463,7 +463,7 @@ class _ModernEmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Tap the star ⭐ on any diary entry\nto save it here for quick access.',
+                'Tap the star ❤️ on any diary entry\nto save it here for quick access.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurface.withValues(alpha: 0.6),
                   height: 1.5,
@@ -471,17 +471,17 @@ class _ModernEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 28),
-              FilledButton.icon(
-                onPressed: onCreatePressed,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Create first entry'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
+              // FilledButton.icon(
+              //   onPressed: onCreatePressed,
+              //   icon: const Icon(Icons.add_rounded),
+              //   label: const Text('Create first entry'),
+              //   style: FilledButton.styleFrom(
+              //     padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              //     shape: RoundedRectangleBorder(
+              //       borderRadius: BorderRadius.circular(14),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ),

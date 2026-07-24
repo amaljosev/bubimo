@@ -76,34 +76,48 @@ class _HomeViewState extends State<_HomeView> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        actions: [
-          IconButton(
-            onPressed: () => context.push(AppRoutes.settings),
-            icon: Icon(Icons.settings),
-          ),
-        ],
-      ),
+      extendBodyBehindAppBar:headerImagePath == null ,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          SliverAppBar(
-            expandedHeight: headerImagePath != null
-                ? _headerExpandedHeight
-                : kToolbarHeight,
+          // Always-pinned top bar (settings action), replacing the old
+          // Scaffold.appBar. It needs to live inside the CustomScrollView
+          // as its own pinned SliverAppBar — a Scaffold.appBar floats in
+          // its own layer above the whole body, so nothing pinned inside
+          // the CustomScrollView can ever dock "below" it. Putting it in
+          // the sliver list is what lets the favorites toggle below pin
+          // directly underneath it instead of sliding under it.
+         if(headerImagePath == null) SliverAppBar(
+            pinned: true,
+            backgroundColor: colorScheme.surface,
+            automaticallyImplyLeading: false,
+            elevation: 0,
+            actions: [
+              IconButton(
+                onPressed: () => context.push(AppRoutes.settings),
+                icon: Icon(Icons.settings),
+              ),
+            ],
+          ),
+        if(headerImagePath != null)  SliverAppBar(
+            expandedHeight: _headerExpandedHeight,
             centerTitle: true,
             // No back button on a tab root, and no theme-agnostic
             // elevation shadow riding on top of the header image.
             automaticallyImplyLeading: false,
             elevation: 0,
+             actions: [
+              IconButton(
+                onPressed: () => context.push(AppRoutes.settings),
+                icon: Icon(Icons.settings),
+              ),
+            ],
             // Only worth enabling the overscroll stretch effect when
             // there's actually a header image to stretch — with the
             // plain kToolbarHeight bar (no image) there's nothing for
             // `stretch` to visually affect, so it's skipped to avoid
             // spending the extra overscroll-physics work for no effect.
-            stretch: headerImagePath != null,
+            stretch: true,
             // How far past the top the user must pull before
             // `onStretchTrigger` fires. Note this only gates the
             // *callback* — the zoomBackground visual itself starts
@@ -111,11 +125,10 @@ class _HomeViewState extends State<_HomeView> {
             // proportionally the further past the top edge the user
             // drags, so this value doesn't need to be large to see
             // the zoom kick in.
+            
             stretchTriggerOffset: 50,
             onStretchTrigger: () async {},
-            flexibleSpace: headerImagePath == null
-                ? null
-                : FlexibleSpaceBar(
+            flexibleSpace: FlexibleSpaceBar(
                     stretchModes: const [
                       StretchMode.zoomBackground,
                       StretchMode.fadeTitle,
@@ -208,24 +221,28 @@ class _HomeViewState extends State<_HomeView> {
                   ),
           ),
 
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                BlocBuilder<DiaryListBloc, DiaryListState>(
-                  builder: (context, state) {
-                    return Center(
-                      child: _FavoritesFilterToggle(
-                        showFavoritesOnly: state.showFavoritesOnly,
-                        onChanged: (value) => context.read<DiaryListBloc>().add(
-                          FavoritesFilterChanged(value),
-                        ),
+          // Pinned favorites toggle bar. Using SliverPersistentHeader
+          // (pinned: true) instead of a SliverToBoxAdapter so this
+          // sticks to the top of the CustomScrollView — right below
+          // the (unpinned) SliverAppBar above — once the header image
+          // has scrolled out of view, rather than scrolling away with
+          // the rest of the list content.
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _PinnedFavoritesHeaderDelegate(
+              backgroundColor: colorScheme.surface,
+              child: BlocBuilder<DiaryListBloc, DiaryListState>(
+                builder: (context, state) {
+                  return Center(
+                    child: _FavoritesFilterToggle(
+                      showFavoritesOnly: state.showFavoritesOnly,
+                      onChanged: (value) => context.read<DiaryListBloc>().add(
+                        FavoritesFilterChanged(value),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           BlocBuilder<DiaryListBloc, DiaryListState>(
@@ -327,6 +344,54 @@ class _HomeViewState extends State<_HomeView> {
         ],
       ),
     );
+  }
+}
+
+/// [SliverPersistentHeaderDelegate] that pins the favorites filter
+/// toggle to the top of the scroll view.
+///
+/// Gives the toggle a fixed, solid-color background (matching the
+/// scaffold's surface) rather than a transparent one — once pinned,
+/// list items scroll underneath it, so it needs an opaque backing to
+/// avoid content showing through/behind the toggle.
+class _PinnedFavoritesHeaderDelegate extends SliverPersistentHeaderDelegate {
+  const _PinnedFavoritesHeaderDelegate({
+    required this.child,
+    required this.backgroundColor,
+  });
+
+  final Widget child;
+  final Color backgroundColor;
+
+  // Fixed height for the pinned bar: 12 top padding + 40 toggle height
+  // + 12 bottom padding, matching the original SliverToBoxAdapter's
+  // spacing (12 / toggle / 12).
+  static const double _height = 64;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      color: backgroundColor,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedFavoritesHeaderDelegate oldDelegate) {
+    return oldDelegate.child != child ||
+        oldDelegate.backgroundColor != backgroundColor;
   }
 }
 
