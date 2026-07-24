@@ -75,3 +75,41 @@ class MediaStorageException extends AppException {
 class ImportExportException extends AppException {
   const ImportExportException({required super.message});
 }
+
+/// Thrown by the cloud backup feature's Google sign-in step for any
+/// authentication problem other than the user simply dismissing the
+/// account picker (that's [AuthCancelledException], handled
+/// separately since it's an expected, silent outcome rather than an
+/// error to surface).
+class AuthException extends AppException {
+  const AuthException({required super.message});
+}
+
+/// Thrown when the user dismisses the Google account picker or the
+/// consent screen without completing sign-in. Kept distinct from
+/// [AuthException] so the bloc can treat this as a silent no-op
+/// (return to idle) rather than showing an error message for what is,
+/// from the user's perspective, not a failure at all.
+class AuthCancelledException extends AppException {
+  const AuthCancelledException({required super.message});
+}
+
+/// Thrown when a previously-authorized Google session/token is no
+/// longer valid (revoked, expired, or never obtained) and the caller
+/// needs to sign in again — distinct from [AuthException] so the UI
+/// can specifically prompt "please sign in again" rather than a
+/// generic auth error.
+class AuthExpiredException extends AppException {
+  const AuthExpiredException({required super.message});
+}
+
+/// Thrown by the cloud backup feature for any Google Drive-specific
+/// problem once authentication itself has succeeded — quota exceeded,
+/// rate limiting, a blocked organizational policy, or an unexpected
+/// Drive API/server error. Carries a specific, already-user-facing
+/// message rather than being split into one exception class per Drive
+/// error code — see [CloudBackupFailure]'s doc comment for the
+/// reasoning.
+class CloudBackupException extends AppException {
+  const CloudBackupException({required super.message});
+}

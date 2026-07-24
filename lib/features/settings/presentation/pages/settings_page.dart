@@ -13,10 +13,10 @@ import '../widgets/settings_list_item.dart';
 /// [Scaffold]/[AppBar] (with a back button) rather than relying on
 /// shell-provided chrome.
 ///
-/// Only the "Reminder" item is wired up. Every other item is
-/// intentionally a static, no-op row until its feature is built — flip
-/// `onTap` from `null` to a real callback as each one comes online, no
-/// structural changes needed here.
+/// Only the "Reminder" and "App Lock" items are wired up. Every other
+/// item is intentionally a static, no-op row until its feature is
+/// built — flip `onTap` from `null` to a real callback as each one
+/// comes online, no structural changes needed here.
 ///
 /// The "Analytics" row that used to live under Insights has been
 /// removed — Analytics is no longer a separate pushed destination, it's
@@ -48,10 +48,12 @@ class SettingsPage extends StatelessWidget {
                 SettingsListItem(
                   icon: Icons.lock_outline_rounded,
                   label: 'App Lock',
+                  onTap: () => context.push(AppRoutes.appLockSettings),
                 ),
                 SettingsListItem(
                   icon: Icons.backup_outlined,
                   label: 'Backup & Restore',
+                  onTap: () => context.push(AppRoutes.cloudBackup)
                 ),
                 SettingsListItem(
                   icon: Icons.ios_share_rounded,

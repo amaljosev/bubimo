@@ -4,7 +4,15 @@ import 'package:bubimo/core/di/injection.dart';
 import 'package:bubimo/core/navigation/main_shell.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../features/app_lock/presentation/bloc/lock_bloc.dart';
+import '../../../features/app_lock/presentation/pages/app_lock_settings_page.dart';
+import '../../../features/app_lock/presentation/pages/lock_gate.dart';
+import '../../../features/app_lock/presentation/pages/pin_lock_screen.dart';
+import '../../../features/app_lock/presentation/pages/security_question_page.dart';
+import '../../../features/app_lock/presentation/routing/app_lock_route_paths.dart';
+import '../../../features/app_lock/presentation/routing/lock_redirect.dart';
 import '../../../features/backup/presentation/pages/backup_restore_page.dart';
+import '../../../features/cloud_backup/presentation/pages/cloud_backup_page.dart';
 import '../../../features/diary_entry/presentation/pages/diary_entry_view_page.dart';
 import '../../../features/diary_entry/presentation/pages/diary_form_page.dart';
 import '../../../features/favorites/presentation/pages/favorites_page.dart';
@@ -20,6 +28,12 @@ import '../../../features/theme/presentation/pages/custom_theme_screen.dart';
 
 /// Centralized route path constants. Use these instead of raw strings
 /// when navigating, to avoid typos and make renames a one-line change.
+/// The app-lock constants below are re-exports of AppLockRoutePaths
+/// (defined inside the app_lock feature itself, since
+/// AppLockSettingsPage needs to push to them without importing this
+/// file and creating a circular import) — kept here too so every other
+/// feature can keep referencing `AppRoutes.appLock...`/`AppRoutes.lock...`
+/// the same way it references every other route.
 class AppRoutes {
   AppRoutes._();
 
@@ -31,9 +45,32 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String favorites = '/favorites';
   static const String importExport = '/import-export';
+  static const String cloudBackup = '/cloud-backup';
+  static const String appLockSettings = AppLockRoutePaths.settings;
+  static const String appLockPinCreate = AppLockRoutePaths.pinCreate;
+  static const String appLockSecurityQuestionSetup =
+      AppLockRoutePaths.securityQuestionSetup;
+  static const String lockGate = AppLockRoutePaths.lockGate;
+  static const String lockPinVerify = AppLockRoutePaths.pinVerify;
+  static const String lockSecurityQuestionVerify =
+      AppLockRoutePaths.securityQuestionVerify;
 }
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.home,
+  // Gates EVERY route below with the app-lock feature, without
+  // changing how any individual route/BlocProvider already works.
+  // `lockRedirect` reads getIt<LockBloc>().state directly (not via
+  // context, since `redirect` runs before a widget tree exists for
+  // this navigation) — see lock_redirect.dart for the exemptions
+  // (lock gate itself, its two verify screens, and the settings/setup
+  // screens) that keep this from becoming an infinite redirect loop.
+  redirect: (context, state) => lockRedirect(getIt<LockBloc>(), state),
+  // Without this, GoRouter would never re-run `redirect` when LockBloc
+  // emits (e.g. after LockApp fires on a lifecycle pause, or after a
+  // successful VerifyPinAttempt) — BLoC state changes aren't otherwise
+  // visible to GoRouter. GoRouterRefreshStream ships inside go_router
+  // itself; it's the standard cookbook helper that adapts a Stream
+  // into a Listenable.
   routes: [
     GoRoute(
       path: AppRoutes.home,
@@ -109,6 +146,79 @@ final GoRouter appRouter = GoRouter(
       // starts at BackupStatus.idle and only does anything once the
       // user taps Export or picks an import file.
       builder: (context, state) => const BackupRestorePage(),
+    ),
+    GoRoute(
+      path: AppRoutes.cloudBackup,
+      // Same reasoning as AppRoutes.importExport just above —
+      // CloudBackupPage provides its own CloudBackupBloc internally.
+      builder: (context, state) => const CloudBackupPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.appLockSettings,
+      // LockBloc is a lazySingleton (see injection.dart's app_lock
+      // section) — this route provides the SAME instance main.dart
+      // already dispatched LoadLockConfig on at startup, rather than
+      // building a fresh one, since LockGate needs to observe that
+      // instance's state too. AppLockSettingsPage re-dispatches
+      // LoadLockConfig itself on initState (mirroring the original
+      // reference screen), which is safe/idempotent against an
+      // already-loaded singleton.
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const AppLockSettingsPage(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.appLockPinCreate,
+      // Pushed by AppLockSettingsPage; pops with the created 4-digit
+      // PIN string (or null if the user backs out) rather than
+      // dispatching SetLockType itself, so the settings page stays the
+      // single place that decides what to do with the result.
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const PinLockScreen(mode: LockMode.create),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.appLockSecurityQuestionSetup,
+      // Pushed by AppLockSettingsPage; pops with
+      // {'question': ..., 'answer': ...} for the same reason as
+      // appLockPinCreate above.
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const SecurityQuestionPage(isVerification: false),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.lockGate,
+      // Where `lockRedirect` sends navigation whenever the app is
+      // locked. LockGate itself picks biometric / PIN-verify /
+      // security-question-verify based on LockBloc.state.lockType and
+      // `context.go('/')`s on success.
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const LockGate(),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.lockPinVerify,
+      // Not normally navigated to directly (LockGate renders
+      // PinLockScreen inline for the common case) — registered as its
+      // own route so `lockRedirect`'s exempt-path check has somewhere
+      // valid to point if a future call site ever pushes here directly
+      // for a standalone re-verification (e.g. "confirm PIN before
+      // changing lock settings").
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const PinLockScreen(mode: LockMode.verify),
+      ),
+    ),
+    GoRoute(
+      path: AppRoutes.lockSecurityQuestionVerify,
+      builder: (context, state) => BlocProvider.value(
+        value: getIt<LockBloc>(),
+        child: const SecurityQuestionPage(isVerification: true),
+      ),
     ),
 
   ],

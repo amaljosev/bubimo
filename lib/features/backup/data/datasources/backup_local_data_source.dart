@@ -40,6 +40,17 @@ const String kBackupFileExtension = '.bubimo';
 /// bumping the app version.
 const String _kAppVersionForBackupManifest = '1.0.0';
 
+/// Result of [BackupLocalDataSource.buildBackupArchive] — the built
+/// zip's raw bytes plus the entry count, so a caller (local export,
+/// cloud backup) can report the count without re-parsing the archive
+/// just to find out how many entries it holds.
+class BackupArchive {
+  final Uint8List bytes;
+  final int entryCount;
+
+  const BackupArchive({required this.bytes, required this.entryCount});
+}
+
 /// Raw file-system and archive access for creating and applying
 /// `.bubimo` backup bundles. No error-wrapping here — exceptions
 /// propagate up to `BackupRepositoryImpl`, matching every other data
@@ -95,7 +106,14 @@ class BackupLocalDataSource {
   /// number of entries included, the file's size in bytes, and whether
   /// it landed in the public Downloads directory (vs. an app-private
   /// fallback — see [resolveDownloadsDirectory]'s doc comment).
-  Future<ExportResult> createBackup() async {
+  /// Builds the exact same zip archive [createBackup] writes to disk —
+  /// manifest, entry JSON, and every referenced media file — but
+  /// returns it as bytes instead of writing anywhere. This is the
+  /// shared step cloud backup (a separate feature) reuses so it never
+  /// needs its own copy of the entry/media serialization logic; it
+  /// only needs to decide where the resulting bytes go (Drive, in that
+  /// case, instead of the Downloads folder).
+  Future<BackupArchive> buildBackupArchive() async {
     final entries = await diaryLocalDataSource.getAllEntries();
 
     final archive = Archive();
@@ -137,17 +155,25 @@ class BackupLocalDataSource {
     );
 
     final zipBytes = ZipEncoder().encode(archive);
+    return BackupArchive(
+      bytes: Uint8List.fromList(zipBytes),
+      entryCount: entries.length,
+    );
+  }
+
+  Future<ExportResult> createBackup() async {
+    final built = await buildBackupArchive();
 
     final (directory, savedToPublicDownloads) =
         await resolveDownloadsDirectory();
     final fileName = _generateExportFileName();
     final file = File(p.join(directory.path, fileName));
-    await file.writeAsBytes(zipBytes);
+    await file.writeAsBytes(built.bytes);
 
     return ExportResult(
       filePath: file.path,
-      entryCount: entries.length,
-      fileSizeBytes: zipBytes.length,
+      entryCount: built.entryCount,
+      fileSizeBytes: built.bytes.length,
       savedToPublicDownloads: savedToPublicDownloads,
     );
   }
@@ -286,7 +312,16 @@ class BackupLocalDataSource {
   /// state change.
   Future<ImportResult> importBackup(String filePath) async {
     final bytes = await File(filePath).readAsBytes();
+    return importBackupFromBytes(bytes);
+  }
 
+  /// Same as [importBackup], but takes the archive's bytes directly
+  /// rather than reading them from a local file path — used by cloud
+  /// backup's restore flow, which downloads the bytes from Drive and
+  /// has no local file to point [importBackup] at. Every validation
+  /// and media-resolution step is identical either way; only where the
+  /// bytes originally came from differs.
+  Future<ImportResult> importBackupFromBytes(List<int> bytes) async {
     final Archive archive;
     try {
       archive = ZipDecoder().decodeBytes(bytes);

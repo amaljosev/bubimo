@@ -73,6 +73,13 @@ import '../../features/backgrounds/data/datasources/supabase_background_data_sou
 import '../../features/backgrounds/presentation/bloc/background_picker/background_picker_bloc.dart';
 import '../services/supabase_storage_asset_service.dart';
 
+// cloud_backup
+import '../../features/cloud_backup/data/datasources/google_auth_datasource.dart';
+import '../../features/cloud_backup/data/datasources/google_drive_datasource.dart';
+import '../../features/cloud_backup/data/repositories/cloud_backup_repository_impl.dart';
+import '../../features/cloud_backup/domain/repositories/cloud_backup_repository.dart';
+import '../../features/cloud_backup/presentation/bloc/cloud_backup_bloc.dart';
+
 // rich_editor (remote stickers)
 
 // reminders
@@ -82,6 +89,20 @@ import '../../features/reminders/domain/usecases/check_reminder_permissions.dart
 import '../../features/reminders/domain/usecases/get_reminder_settings.dart';
 import '../../features/reminders/domain/usecases/set_reminder.dart';
 import '../../features/reminders/presentation/bloc/reminder_settings/reminder_settings_bloc.dart';
+
+// app_lock
+import '../../features/app_lock/data/datasources/biometric_data_source.dart';
+import '../../features/app_lock/data/datasources/lock_local_data_source.dart';
+import '../../features/app_lock/data/repositories/app_lock_repository_impl.dart';
+import '../../features/app_lock/domain/repositories/app_lock_repository.dart';
+import '../../features/app_lock/domain/usecases/authenticate_with_biometrics.dart';
+import '../../features/app_lock/domain/usecases/check_biometric_availability.dart';
+import '../../features/app_lock/domain/usecases/get_lock_config.dart';
+import '../../features/app_lock/domain/usecases/set_biometric_enabled.dart';
+import '../../features/app_lock/domain/usecases/set_lock_type.dart' as app_lock_usecase;
+import '../../features/app_lock/domain/usecases/verify_pin.dart';
+import '../../features/app_lock/domain/usecases/verify_security_answer.dart';
+import '../../features/app_lock/presentation/bloc/lock_bloc.dart';
 
 
 final GetIt getIt = GetIt.instance;
@@ -332,6 +353,35 @@ Future<void> configureDependencies() async {
     ),
   );
 
+  // --- cloud_backup ---
+  // GoogleAuthDataSource is a lazy singleton — it tracks the current
+  // signed-in account itself (via google_sign_in's authenticationEvents
+  // stream), so it must persist for the app's lifetime rather than
+  // being recreated per bloc instance, or every new CloudBackupBloc
+  // would forget who's signed in.
+  //
+  // Depends on BackupLocalDataSource (registered under
+  // --- backup (Import & Export) --- above) — cloud backup reuses that
+  // exact archive-building/import logic rather than re-implementing
+  // entry/media serialization a second time. See
+  // CloudBackupRepositoryImpl's doc comment.
+  getIt.registerLazySingleton(() => GoogleAuthDataSource());
+  getIt.registerLazySingleton(
+    () => GoogleDriveDataSource(getIt<GoogleAuthDataSource>()),
+  );
+  getIt.registerLazySingleton<CloudBackupRepository>(
+    () => CloudBackupRepositoryImpl(
+      authDataSource: getIt<GoogleAuthDataSource>(),
+      driveDataSource: getIt<GoogleDriveDataSource>(),
+      backupLocalDataSource: getIt<BackupLocalDataSource>(),
+    ),
+  );
+  // Factory — fresh per visit, same reasoning as BackupBloc: a stale
+  // currentBackup/message shouldn't leak into a later, unrelated visit.
+  getIt.registerFactory(
+    () => CloudBackupBloc(repository: getIt<CloudBackupRepository>()),
+  );
+
 
 
   // --- reminders ---
@@ -373,6 +423,64 @@ Future<void> configureDependencies() async {
       cancelReminder: getIt<CancelReminder>(),
       checkReminderPermissions: getIt<CheckReminderPermissions>(),
       requestReminderPermissions: getIt<RequestReminderPermissions>(),
+    ),
+  );
+
+  // --- app_lock ---
+  // Reuses the shared app_settings singleton row/table (see
+  // AppSettingsTable) rather than a separate database or
+  // flutter_secure_storage — lock_type, the hashed PIN/security-answer,
+  // the security-question prompt, and biometric_enabled are all
+  // columns already defined on that table. No new table, no new
+  // storage mechanism, no migration needed.
+  getIt.registerLazySingleton<LockLocalDataSource>(
+    () => LockLocalDataSourceImpl(getIt<AppDatabase>()),
+  );
+  getIt.registerLazySingleton<BiometricDataSource>(
+    () => BiometricDataSourceImpl(),
+  );
+  getIt.registerLazySingleton<AppLockRepository>(
+    () => AppLockRepositoryImpl(
+      localDataSource: getIt<LockLocalDataSource>(),
+      biometricDataSource: getIt<BiometricDataSource>(),
+    ),
+  );
+
+  getIt.registerLazySingleton(() => GetLockConfig(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(
+    () => app_lock_usecase.SetLockType(getIt<AppLockRepository>()),
+  );
+  // Independent of SetLockType — flips biometric_enabled without
+  // touching lock_type. See SetBiometricEnabled's doc comment.
+  getIt.registerLazySingleton(
+    () => SetBiometricEnabled(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => CheckBiometricAvailability(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(
+    () => AuthenticateWithBiometrics(getIt<AppLockRepository>()),
+  );
+  getIt.registerLazySingleton(() => VerifyPin(getIt<AppLockRepository>()));
+  getIt.registerLazySingleton(
+    () => VerifySecurityAnswer(getIt<AppLockRepository>()),
+  );
+
+  // Lazy singleton, NOT a factory — LockBloc must persist for the
+  // app's entire lifetime (mirrors AppThemeCubit just above): both
+  // main.dart's LoadLockConfig dispatch at startup and LockGate's
+  // BlocConsumer need to be reading and reacting to the same instance.
+  // A factory here would silently hand LockGate a brand-new, never-
+  // loaded bloc instance the moment it's built.
+  getIt.registerLazySingleton(
+    () => LockBloc(
+      getLockConfig: getIt<GetLockConfig>(),
+      setLockType: getIt<app_lock_usecase.SetLockType>(),
+      setBiometricEnabled: getIt<SetBiometricEnabled>(),
+      checkBiometricAvailability: getIt<CheckBiometricAvailability>(),
+      authenticateWithBiometrics: getIt<AuthenticateWithBiometrics>(),
+      verifyPin: getIt<VerifyPin>(),
+      verifySecurityAnswer: getIt<VerifySecurityAnswer>(),
     ),
   );
 

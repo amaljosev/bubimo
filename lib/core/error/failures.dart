@@ -82,3 +82,39 @@ final class ImportExportFailure extends Failure {
     super.message = 'Failed to process the backup file.',
   ]);
 }
+
+/// Google sign-in failed for a reason other than the user simply
+/// dismissing the picker. Mirrors [AuthException] in exceptions.dart.
+final class AuthFailure extends Failure {
+  const AuthFailure([super.message = 'Sign-in failed.']);
+}
+
+/// The user dismissed the Google account picker or consent screen
+/// without completing sign-in. Mirrors [AuthCancelledException] — kept
+/// distinct so the bloc can return to idle silently instead of showing
+/// this as an error.
+final class AuthCancelledFailure extends Failure {
+  const AuthCancelledFailure([super.message = 'Sign-in was cancelled.']);
+}
+
+/// A previously-authorized Google session is no longer valid and the
+/// user needs to sign in again. Mirrors [AuthExpiredException].
+final class AuthExpiredFailure extends Failure {
+  const AuthExpiredFailure([
+    super.message = 'Your Google sign-in has expired. Please sign in again.',
+  ]);
+}
+
+/// A Google Drive-specific problem occurred during cloud backup/restore
+/// once authentication itself succeeded (quota exceeded, rate limited,
+/// blocked by an organizational policy, or an unexpected server error).
+/// Mirrors [CloudBackupException]. Kept as ONE failure type carrying a
+/// specific message, rather than one subclass per Drive error code —
+/// the presentation layer only ever displays the message, so granular
+/// subclasses would add file/type overhead without adding any behavior
+/// the message string doesn't already provide.
+final class CloudBackupFailure extends Failure {
+  const CloudBackupFailure([
+    super.message = 'Cloud backup failed.',
+  ]);
+}
